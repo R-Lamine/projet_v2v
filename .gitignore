@@ -1,0 +1,39 @@
+# ===============================
+#   FICHIERS À IGNORER POUR QT & CMAKE
+# ===============================
+
+# Dossiers de build (générés automatiquement)
+build*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Fichiers temporaires Qt Creator
+*.user
+*.user.*
+*.autosave
+*.pro.user
+
+# Binaires et exécutables
+ConnectedVehicles
+*.o
+*.obj
+*.exe
+*.out
+
+# Fichiers de logs et de sortie
+*.log
+
+# Données volumineuses (fichiers OSM, etc.)
+data/*.osm
+data/*.osm.pbf
+data/*.zip
+
+# Dossiers système
+.DS_Store
+Thumbs.db
+
+# Sauvegardes temporaires d’éditeur
+*~
+*.swp

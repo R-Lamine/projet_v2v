@@ -28,9 +28,14 @@ include_directories(include)
 # 2. PROJ : calculs de distance géographique
 # 3. libosmium : lecture de fichiers OpenStreetMap
 find_package(Boost REQUIRED)
-find_package(PROJ REQUIRED)
-# libosmium n’a pas de package CMake officiel, on se contente de l’inclure
+
+# PROJ (lib de projection géographique)
+include_directories(/usr/include)
+link_libraries(proj)
+
+# libosmium
 include_directories(/usr/include/osmium)
+
 
 # ===============================
 #  Récupération automatique des fichiers source
@@ -48,7 +53,14 @@ add_executable(ConnectedVehicles ${SOURCES})
 #  Liaison avec les bibliothèques externes
 # ===============================
 # On lie le projet aux bibliothèques trouvées (Boost, PROJ)
-target_link_libraries(ConnectedVehicles ${Boost_LIBRARIES} ${PROJ_LIBRARIES})
+target_link_libraries(ConnectedVehicles
+    ${Boost_LIBRARIES}
+    proj
+    bz2
+    z
+    expat
+)
+
 
 # ===============================
 #  Informations de débogage (optionnel)
