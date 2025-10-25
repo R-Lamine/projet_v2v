@@ -25,11 +25,6 @@ ConnectedVehicles
 # Fichiers de logs et de sortie
 *.log
 
-# Données volumineuses (fichiers OSM, etc.)
-data/*.osm
-data/*.osm.pbf
-data/*.zip
-
 # Dossiers système
 .DS_Store
 Thumbs.db
