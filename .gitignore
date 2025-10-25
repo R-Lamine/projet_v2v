@@ -32,3 +32,4 @@ Thumbs.db
 # Sauvegardes temporaires d’éditeur
 *~
 *.swp
+.vscode
