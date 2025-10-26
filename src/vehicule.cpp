@@ -1,27 +1,33 @@
 #include "vehicule.h"
 
 //Destructor
-Car::~Car(void) {}
+Vehicule::~Vehicule(void) {}
 
-void Car::update(double deltaTime) {
+void Vehicule::update(double deltaTime) {
     if (destReached) return;
 
     // If we have no valid current edge, try to pick one from currVertex
     if (edgeLength <= 0.0) {
-        auto [ei, ei_end] = boost::out_edges(currVertex, graph);
-        if (ei == ei_end) { destReached = true; return; }
-        currEdge = *ei;
+        auto [edgeIteratorStart, edgeIteratorEnd] = boost::out_edges(currVertex, graph);
+        if (edgeIteratorStart == edgeIteratorEnd)
+        {
+            destReached = true;
+            return;
+        }
+
+        currEdge = *edgeIteratorStart;
         nextVertex = boost::target(currEdge, graph);
         edgeLength = graph[currEdge].distance;
         positionOnEdge = 0.0;
+
         // set initial speed if needed
-        if (speed <= 0.0) speed = 13.9; // e.g. 50 km/h in m/s
+        //if (speed <= 0.0) speed = 13.9; // e.g. 50 km/h in m/s
     }
 
     // advance
     positionOnEdge += speed * deltaTime;
 
-    // reached or passed end of edge?
+    // reached end
     if (positionOnEdge >= edgeLength) {
         // compute overshoot
         double overshoot = positionOnEdge - edgeLength;
@@ -30,8 +36,8 @@ void Car::update(double deltaTime) {
         currVertex = nextVertex;
 
         // pick next outgoing edge (simple policy: first available)
-        auto [ei, ei_end] = boost::out_edges(currVertex, graph);
-        if (ei == ei_end) {
+        auto [edgeIteratorStart, edgeIteratorEnd] = boost::out_edges(currVertex, graph);
+        if (edgeIteratorStart == edgeIteratorEnd) {
             // dead end or destination
             destReached = true;
             positionOnEdge = edgeLength; // clamp
@@ -39,7 +45,7 @@ void Car::update(double deltaTime) {
         }
 
         // pick the first outgoing edge (replace with route logic later)
-        currEdge = *ei;
+        currEdge = *edgeIteratorStart;
         nextVertex = boost::target(currEdge, graph);
         edgeLength = graph[currEdge].distance;
 
@@ -49,7 +55,7 @@ void Car::update(double deltaTime) {
 }
 
 
-std::pair<double,double> Car::getPosition() const {
+std::pair<double,double> Vehicule::getPosition() const {
     if (edgeLength <= 0.0) {
         const auto& vd = graph[currVertex];
         return {vd.lat, vd.lon};
@@ -67,4 +73,23 @@ std::pair<double,double> Car::getPosition() const {
     double lat = sd.lat + tparam * (td.lat - sd.lat);
     double lon = sd.lon + tparam * (td.lon - sd.lon);
     return {lat, lon};
+}
+
+double Vehicule::calculateDist(Vehicule from) const{
+    auto [lat1, lon1] = getPosition();
+    auto [lat2, lon2] = from.getPosition();
+
+    //euclidian distance
+    double dx = lat1 - lat2;
+    double dy = lon1 - lon2;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+void Vehicule::avoidCollision() {
+    for (Vehicule* v : neighbors) {
+        double dist = calculateDist(*v);
+        if (dist <= collisionDist) {
+            speed *= slowFactor;
+        }
+    }
 }

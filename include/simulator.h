@@ -13,7 +13,7 @@ public:
 
 private:
     const RoadGraph& graph;
-    std::vector<Car> cars;
+    std::vector<Vehicule> vehicules;
 };
 
 
