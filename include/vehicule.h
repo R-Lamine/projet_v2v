@@ -29,10 +29,13 @@ public:
      * @brief Constructs a Vehicule.
      * @param id Unique vehicle ID.
      * @param graph Reference to a shared RoadGraph.
-     * @param start Starting vertex.
+     * @param start and Goal vertex.
+     * @param speed of vehicule movement.
      * @param range Transmission range for V2V communication.
+     * @param collisionDist to avoid collisions.
      */
-    Vehicule(int id, const RoadGraph& graph, Vertex start, double range);
+    Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed,
+             double range, double collisionDist);
 
     /// Destructor
     ~Vehicule();
@@ -97,17 +100,20 @@ private:
     int id;
     const RoadGraph& graph;         ///< Reference to shared road graph
 
-    Vertex currVertex;
+    Vertex start;
+    Vertex goal;
+
     Vertex nextVertex;
     Edge currEdge;
     double collisionDist;
-
-    double positionOnEdge;          ///< Distance along the current edge
-    double speed;
-    double edgeLength = 0.0;        ///< Cach of graph[currEdge].distance
-    bool destReached = false;
     double transmissionRange;
+    double speed;
 
+    //default values
+    Vertex currVertex = start;
+    double edgeLength = 0.0;      ///< Cach of graph[currEdge].distance
+    double positionOnEdge = 0.0;     ///< Distance along the current edge
+    bool destReached = false;
     double slowFactor = 0.8;        ///< Speed reduction factor when avoiding collision
 
     std::vector<Vehicule*> neighbors;

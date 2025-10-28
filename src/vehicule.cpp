@@ -1,10 +1,31 @@
 #include "vehicule.h"
 
+//Constructor
+Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed, double range, double collisionDist)
+    : id(id),
+    graph(graph),
+    start(start),
+    goal(goal),
+    transmissionRange(range),
+    speed(speed),
+    collisionDist(collisionDist)
+{}
+
+
 //Destructor
 Vehicule::~Vehicule(void) {}
 
+
+/**
+ * @brief Vehicule::update, select next Edge randomly for now, will use shortest part later (Djikstra)
+ * @param deltaTime
+ */
 void Vehicule::update(double deltaTime) {
     if (destReached) return;
+    if (currVertex == goal) {
+        destReached = true;
+        return;
+    }
 
     // If we have no valid current edge, try to pick one from currVertex
     if (edgeLength <= 0.0) {
@@ -15,6 +36,8 @@ void Vehicule::update(double deltaTime) {
             return;
         }
 
+        // Pick a random outgoing edge instead of always the first
+        std::advance(edgeIteratorStart, rand() % std::distance(edgeIteratorStart, edgeIteratorEnd));
         currEdge = *edgeIteratorStart;
         nextVertex = boost::target(currEdge, graph);
         edgeLength = graph[currEdge].distance;
@@ -34,8 +57,12 @@ void Vehicule::update(double deltaTime) {
 
         // arrive at next vertex
         currVertex = nextVertex;
+        if (currVertex == goal) {
+            destReached = true;
+            return;
+        }
 
-        // pick next outgoing edge (simple policy: first available)
+        // pick next outgoing edge randomly
         auto [edgeIteratorStart, edgeIteratorEnd] = boost::out_edges(currVertex, graph);
         if (edgeIteratorStart == edgeIteratorEnd) {
             // dead end or destination
@@ -44,7 +71,7 @@ void Vehicule::update(double deltaTime) {
             return;
         }
 
-        // pick the first outgoing edge (replace with route logic later)
+        std::advance(edgeIteratorStart, rand() % std::distance(edgeIteratorStart, edgeIteratorEnd));
         currEdge = *edgeIteratorStart;
         nextVertex = boost::target(currEdge, graph);
         edgeLength = graph[currEdge].distance;

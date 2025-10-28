@@ -3,13 +3,21 @@
 
 #include "vehicule.h"
 
-class Simulation {
+
+class Simulator {
 public:
-    Simulation(const RoadGraph& g);
+    Simulator(const RoadGraph& g);
+    ~Simulator();
 
     void addCar(Vertex start, Vertex goal);
     void update(double deltaTime);
     void printStatus() const;
+
+    //getters
+    const std::vector<Vehicule>& getVehicules() const {return vehicules;};
+
+    //test function
+    //RoadGraph createTestGraph();
 
 private:
     const RoadGraph& graph;

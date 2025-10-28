@@ -14,6 +14,7 @@ project(ConnectedVehicles LANGUAGES CXX)
 # C++17 est requis pour Boost, libosmium et les fonctionnalités modernes
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
 
 # ===============================
 #  Inclusion des fichiers d'en-tête
@@ -27,7 +28,14 @@ include_directories(include)
 # 1. Boost : gestion du graphe (Boost Graph Library)
 # 2. PROJ : calculs de distance géographique
 # 3. libosmium : lecture de fichiers OpenStreetMap
+
 find_package(Boost REQUIRED)
+
+# ===============================
+#  Qt for GUI Visualization
+# ===============================
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+
 
 # PROJ (lib de projection géographique)
 include_directories(/usr/include)
@@ -59,6 +67,7 @@ target_link_libraries(ConnectedVehicles
     bz2
     z
     expat
+    Qt6::Widgets
 )
 
 
