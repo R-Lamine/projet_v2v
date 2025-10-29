@@ -16,6 +16,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+# For QWidget
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 # ===============================
 #  Inclusion des fichiers d'en-tête
 # ===============================
@@ -34,7 +39,7 @@ find_package(Boost REQUIRED)
 # ===============================
 #  Qt for GUI Visualization
 # ===============================
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
 
 
 # PROJ (lib de projection géographique)
@@ -57,6 +62,11 @@ file(GLOB SOURCES src/*.cpp)
 # Le binaire s’appellera ConnectedVehicles
 add_executable(ConnectedVehicles ${SOURCES})
 
+
+########## debug Widgets
+qt6_wrap_cpp(MOC_SOURCES include/SimulatorView.h)
+target_sources(ConnectedVehicles PRIVATE ${MOC_SOURCES})
+
 # ===============================
 #  Liaison avec les bibliothèques externes
 # ===============================
@@ -68,6 +78,8 @@ target_link_libraries(ConnectedVehicles
     z
     expat
     Qt6::Widgets
+    Qt6::Core
+    Qt6::Gui
 )
 
 

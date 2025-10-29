@@ -1,5 +1,4 @@
 #include "SimulatorView.h"
-#include <QPainter>
 
 SimulatorView::SimulatorView(QWidget *parent)
     : QWidget(parent),
@@ -9,9 +8,15 @@ SimulatorView::SimulatorView(QWidget *parent)
     m_timer->start(100); // update every 100ms
 }
 
+/*
+SimulatorView::~SimulatorView() {
+    m_vehicules.clear();
+}
+*/
 void SimulatorView::setVehicles(const std::vector<Vehicule*>& vehicules) {
     m_vehicules = vehicules;
 }
+//we pass thevector by reference and not a copy
 
 void SimulatorView::updateSimulation() {
     for (auto* v : m_vehicules) {

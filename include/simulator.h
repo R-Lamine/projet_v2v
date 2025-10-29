@@ -14,14 +14,14 @@ public:
     void printStatus() const;
 
     //getters
-    const std::vector<Vehicule>& getVehicules() const {return vehicules;};
+    const std::vector<Vehicule*> getVehicules() const {return vehicules;};
 
     //test function
     //RoadGraph createTestGraph();
 
 private:
     const RoadGraph& graph;
-    std::vector<Vehicule> vehicules;
+    std::vector<Vehicule*> vehicules;
 };
 
 

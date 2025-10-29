@@ -1,8 +1,3 @@
-/**
- * @file vehicule.h
- * @brief Defines the Vehicule class for simulating vehicle movement and V2V communication.
- */
-
 #ifndef VEHICULE_H
 #define VEHICULE_H
 
@@ -11,16 +6,7 @@
 #include <utility>
 #include <cmath>
 
-/**
- * @class Vehicule
- * @brief Represents a vehicle moving along a road graph with V2V communication.
- *
- * The Vehicule class handles:
- * - Movement along edges of a road graph.
- * - Position updates and overshoot handling at vertices.
- * - Collision avoidance with neighboring vehicles.
- * - Storing and updating a list of neighbors for V2V communication.
- */
+
 class Vehicule {
 
 public:
@@ -110,7 +96,7 @@ private:
     double speed;
 
     //default values
-    Vertex currVertex = start;
+    Vertex currVertex;
     double edgeLength = 0.0;      ///< Cach of graph[currEdge].distance
     double positionOnEdge = 0.0;     ///< Distance along the current edge
     bool destReached = false;

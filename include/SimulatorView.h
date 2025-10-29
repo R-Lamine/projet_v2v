@@ -4,21 +4,26 @@
 #include <QWidget>
 #include <QTimer>
 #include <QPainter>
+#include <QObject>
+#include <QPainter>
 #include "vehicule.h"
 
 class SimulatorView : public QWidget {
     Q_OBJECT
 
 public:
-    explicit SimulatorView(QWidget *parent = nullptr);
+    explicit SimulatorView(QWidget *parent = nullptr);          //explicit prevents automatic conversions like this "SimulatorView view = nullptr;"
 
-    void setVehicles(const std::vector<Vehicule>& vehicules);
+    void setVehicles(const std::vector<Vehicule*>& vehicules);
+
+    ~SimulatorView() = default;
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;           //protected so that it can be reimplemented internally (override)
 
 private slots:
-    void updateSimulation();
+    void updateSimulation();            //slots and signals are the way objects communicate
+                                        //a slot is a funct that reacts to an emitted signal when smthn changes
 
 private:
     std::vector<Vehicule*> m_vehicules;

@@ -1,34 +1,31 @@
 #pragma once
-#include <unordered_map>
-#include <vector>
-#include "graph_types.h"
-#include "osm_reader.h"
 
-// Classe responsable de construire le graphe routier
-// à partir des données OSM (nodes et ways)
+#include <vector>
+#include <unordered_map>
+#include <boost/graph/adjacency_list.hpp>
+#include "graph_types.h"    // pour RoadGraph, Vertex, Edge
+#include "osm_reader.h"    // pour OSMNode, OSMWay
+
 class GraphBuilder {
 public:
-    // Constructeur : reçoit les données lues par OSMReader
-    GraphBuilder(const std::vector<OSMNode>& nodes,
-                 const std::vector<OSMWay>& ways);
+    // Constructeur : reçoit les nodes et ways déjà lus depuis OSMReader
+    GraphBuilder(const std::vector<OSMNode>& n, const std::vector<OSMWay>& w);
 
-    // Construit le graphe complet (sommets + arêtes)
+    // Construit le graphe à partir des données OSM
     void buildGraph();
 
-    // Affiche un petit résumé (nombre de sommets, d'arêtes, etc.)
+    // Calcule la distance géographique entre deux points (en mètres)
+    static double distance(double lat1, double lon1, double lat2, double lon2);
+
+    // Affiche un résumé du graphe (nombre de sommets et d’arêtes)
     void printSummary() const;
 
-    // Retourne une référence constante vers le graphe construit
+    // Retourne une référence constante vers le graphe
     const RoadGraph& getGraph() const { return graph; }
 
 private:
-    // Données sources provenant du fichier OSM
-    const std::vector<OSMNode>& nodes;
-    const std::vector<OSMWay>& ways;
-
-    // Graphe routier résultant
-    RoadGraph graph;
-
-    // Correspondance entre ID OSM et Vertex Boost
-    std::unordered_map<long, Vertex> osmIdToVertex;
+    const std::vector<OSMNode>& nodes;  // Référence vers les nœuds OSM
+    const std::vector<OSMWay>& ways;    // Référence vers les routes OSM
+    RoadGraph graph;                    // Le graphe Boost construit
+    std::unordered_map<long, Vertex> idToVertex; // lien entre ID OSM et sommet Boost
 };

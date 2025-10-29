@@ -1,4 +1,6 @@
 #include "vehicule.h"
+#include "graph_builder.h"
+#include <iostream>
 
 //Constructor
 Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed, double range, double collisionDist)
@@ -6,6 +8,7 @@ Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, do
     graph(graph),
     start(start),
     goal(goal),
+    currVertex(start),
     transmissionRange(range),
     speed(speed),
     collisionDist(collisionDist)
@@ -106,10 +109,8 @@ double Vehicule::calculateDist(Vehicule from) const{
     auto [lat1, lon1] = getPosition();
     auto [lat2, lon2] = from.getPosition();
 
-    //euclidian distance
-    double dx = lat1 - lat2;
-    double dy = lon1 - lon2;
-    return std::sqrt(dx * dx + dy * dy);
+    return GraphBuilder::distance(lat1, lon1, lat2, lon2);
+
 }
 
 void Vehicule::avoidCollision() {
