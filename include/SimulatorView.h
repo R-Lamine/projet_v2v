@@ -7,12 +7,13 @@
 #include <QObject>
 #include <QPainter>
 #include "vehicule.h"
+#include "map_view.h"
 
 class SimulatorView : public QWidget {
     Q_OBJECT
 
 public:
-    explicit SimulatorView(QWidget *parent = nullptr);          //explicit prevents automatic conversions like this "SimulatorView view = nullptr;"
+    explicit SimulatorView(MapView* map, QWidget *parent = nullptr);          //explicit prevents automatic conversions like this "SimulatorView view = nullptr;"
 
     void setVehicles(const std::vector<Vehicule*>& vehicules);
 
@@ -28,6 +29,7 @@ private slots:
 private:
     std::vector<Vehicule*> m_vehicules;
     QTimer* m_timer;
+    MapView* m_map;
 };
 
 #endif // SIMULATORVIEW_H

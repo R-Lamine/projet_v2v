@@ -1,9 +1,9 @@
 #include "SimulatorView.h"
 
-SimulatorView::SimulatorView(QWidget *parent)
-    : QWidget(parent),
-    m_timer(new QTimer(this))
+SimulatorView::SimulatorView(MapView* map, QWidget *parent)
+    : QWidget(parent), m_map(map)
 {
+    m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &SimulatorView::updateSimulation);
     m_timer->start(100); // update every 100ms
 }
@@ -26,14 +26,21 @@ void SimulatorView::updateSimulation() {
 }
 
 void SimulatorView::paintEvent(QPaintEvent*) {
+    if (!m_map) return;
     QPainter painter(this);
-    painter.fillRect(rect(), Qt::white); // background
+
+    //painter.fillRect(rect(), Qt::white); // background
 
     painter.setBrush(Qt::red);
-    for (auto* v : m_vehicules) {
+    for (auto v : m_vehicules) {
         auto [lat, lon] = v->getPosition();
+
+        double px, py;
+        MapView::lonlatToPixel(lon, lat, m_map->zoomLevel(), px, py);
+        /*
         int x = static_cast<int>(lon * 10); // scale for visualization
         int y = static_cast<int>(lat * 10);
-        painter.drawEllipse(QPointF(x, y), 5, 5);
+        */
+        painter.drawEllipse(QPointF(px, py), 5, 5);
     }
 }
