@@ -1,69 +1,31 @@
-# ===============================
-#  Configuration minimale requise
-# ===============================
 cmake_minimum_required(VERSION 3.16)
-
-# ===============================
-#  Nom du projet et langage utilisé
-# ===============================
 project(ConnectedVehicles LANGUAGES CXX)
 
-# ===============================
-#  Version du standard C++
-# ===============================
-# C++17 est requis pour Boost, libosmium et les fonctionnalités modernes
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ===============================
-#  Inclusion des fichiers d'en-tête
-# ===============================
-# Indique à CMake que les fichiers .h se trouvent dans le dossier include/
-include_directories(include)
+# Qt
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
-# ===============================
-#  Recherche des bibliothèques nécessaires
-# ===============================
-# 1. Boost : gestion du graphe (Boost Graph Library)
-# 2. PROJ : calculs de distance géographique
-# 3. libosmium : lecture de fichiers OpenStreetMap
-find_package(Boost REQUIRED)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network)
 
-# PROJ (lib de projection géographique)
-include_directories(/usr/include)
-link_libraries(proj)
-
-# libosmium
-include_directories(/usr/include/osmium)
-
-
-# ===============================
-#  Récupération automatique des fichiers source
-# ===============================
-# CMake va compiler tous les fichiers source présents dans src/
-file(GLOB SOURCES src/*.cpp)
-
-# ===============================
-#  Création de l’exécutable
-# ===============================
-# Le binaire s’appellera ConnectedVehicles
-add_executable(ConnectedVehicles ${SOURCES})
-
-# ===============================
-#  Liaison avec les bibliothèques externes
-# ===============================
-# On lie le projet aux bibliothèques trouvées (Boost, PROJ)
-target_link_libraries(ConnectedVehicles
-    ${Boost_LIBRARIES}
-    proj
-    bz2
-    z
-    expat
+add_executable(ConnectedVehicles
+    src/main.cpp
+    src/map_view.cpp
+    include/map_view.h
 )
 
+target_include_directories(ConnectedVehicles PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# ===============================
-#  Informations de débogage (optionnel)
-# ===============================
-message(STATUS "Boost include dirs: ${Boost_INCLUDE_DIRS}")
-message(STATUS "PROJ library: ${PROJ_LIBRARIES}")
+target_link_libraries(ConnectedVehicles
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+)
+
+message(STATUS "Qt version: ${Qt${QT_VERSION_MAJOR}_VERSION}")
+
