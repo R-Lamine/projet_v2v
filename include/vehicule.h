@@ -23,12 +23,7 @@ public:
     Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed,
              double range, double collisionDist);
 
-    /// Destructor
     ~Vehicule();
-
-    // ===============================
-    // Movement & simulation methods
-    // ===============================
 
     /**
      * @brief Updates the vehicle's position along its current edge.

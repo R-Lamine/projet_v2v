@@ -1,27 +1,69 @@
 #include "simulator.h"
-#include <iostream>
 
-Simulator::Simulator(const RoadGraph& g) : graph(g) {}   //initializes member field "graph" with g
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QDebug>
 
-void Simulator::addCar(Vertex start, Vertex goal) {
-    vehicules.push_back(new Vehicule(vehicules.size(), graph, start, goal, 30.0, 0.0, 5));
-}
+Simulator::Simulator(RoadGraph& graph, MapView* mapView, QObject* parent)
+    :graph(graph), m_mapView(mapView), QObject(parent)
+{
+    // initialize elapsed timer
+    m_elapsed.start();
 
-void Simulator::update(double deltaTime) {
-    for (auto* v : vehicules)
-        v->update(deltaTime);
-}
-
-void Simulator::printStatus() const {
-    for (const auto* v : vehicules) {
-        auto [lat, lon] = v->getPosition();
-        std::cout << "Vehicule " << v->getId()
-                  << " at (" << lat << ", " << lon << ")\n";
-    }
+    // setup the QTimer
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, this, &Simulator::onTick);
 }
 
 Simulator::~Simulator() {
-    for (auto* v : vehicules)
-        delete v;
+    stop();
 }
+
+void Simulator::start(int tickIntervalMs) {
+    m_tickIntervalMs = tickIntervalMs;
+    m_elapsed.restart();
+    m_timer->start(tickIntervalMs);
+    emit simulationStarted();
+}
+
+void Simulator::pause() {
+    m_timer->stop();
+    emit simulationPaused();
+}
+
+void Simulator::resume() {
+    m_elapsed.restart();
+    m_timer->start(m_tickIntervalMs);
+    emit simulationResumed();
+}
+
+void Simulator::stop() {
+    m_timer->stop();
+    emit simulationStopped();
+}
+
+void Simulator::onTick() {
+    double deltaTime = m_elapsed.restart() / 1000.0; // seconds
+    deltaTime *= m_speedMultiplier;
+
+    for (Vehicule* v : m_vehicles) {
+        if(v) v->update(deltaTime);
+    }
+
+    emit ticked(deltaTime);
+}
+
+void Simulator::addVehicle(Vehicule* v) {
+    if(v) m_vehicles.push_back(v);
+}
+
+
+
+
+
+
+
+
+
+
 

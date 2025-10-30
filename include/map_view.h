@@ -39,6 +39,10 @@ public:
 
     //getter
     int zoomLevel() const { return m_zoom; }
+    double centerLon() const;
+    double centerLat() const;
+    double getOffsetX() const {return m_offsetX;}
+    double getOffsetY() const {return m_offsetY;}
 
     //util
     static void lonlatToPixel(double lonDeg, double latDeg, int z, double& px, double& py);

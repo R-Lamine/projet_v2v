@@ -309,3 +309,17 @@ void MapView::pixelToLonlat(double px, double py, int z, double& lonDeg, double&
     latDeg = rad2deg(std::atan(0.5*(std::exp(y) - std::exp(-y))));
 }
 
+
+
+//getters
+double MapView::centerLon() const {
+    double lon, lat;
+    pixelToLonlat(width() / 2.0 - m_offsetX, height() / 2.0 - m_offsetY, m_zoom, lon, lat);
+    return lon;
+}
+
+double MapView::centerLat() const {
+    double lon, lat;
+    pixelToLonlat(width() / 2.0 - m_offsetX, height() / 2.0 - m_offsetY, m_zoom, lon, lat);
+    return lat;
+}
