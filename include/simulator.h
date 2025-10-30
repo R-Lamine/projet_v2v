@@ -11,7 +11,6 @@
 #include "map_view.h"
 #include "graph_builder.h"
 
-
 class Simulator : public QObject {
     Q_OBJECT
 

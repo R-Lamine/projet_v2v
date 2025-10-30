@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "simulator.h"
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -78,6 +80,22 @@ void MapView::paintEvent(QPaintEvent*){
             p.drawLine(x - (int)m_offsetX, 0 - (int)m_offsetY, x - (int)m_offsetX, 4096 - (int)m_offsetY);
         for(int y=0; y< 4096; y+=step)
             p.drawLine(0 - (int)m_offsetX, y - (int)m_offsetY, 4096 - (int)m_offsetX, y - (int)m_offsetY);
+    }
+
+    //Draw vehicules on map
+    if (m_simulator) {
+        const auto& vehicles = m_simulator->vehicles();
+
+        QBrush brush(Qt::red);
+        p.setBrush(brush);
+        p.setPen(Qt::red);
+
+        for (auto* v : vehicles) {
+            auto [lat, lon] = v->getPosition();
+
+            QPointF pt= lonLatToScreen(lon, lat); // or use a function that converts lon/lat → screen
+            p.drawEllipse(pt, 8, 8);  // small circle representing vehicle
+        }
     }
 
     drawHUD(p);
@@ -288,6 +306,11 @@ void MapView::screenToLonLat(const QPoint& screenPos, double& lon, double& lat) 
     double wx = m_offsetX + screenPos.x();
     double wy = m_offsetY + screenPos.y();
     pixelToLonlat(wx, wy, m_zoom, lon, lat);
+}
+QPointF MapView::lonLatToScreen(double lon, double lat) const {
+    double px, py;
+    lonlatToPixel(lon, lat, m_zoom, px, py); // the inverse of pixelToLonlat
+   return QPointF(px - m_offsetX, py - m_offsetY);
 }
 
 double MapView::metersPerPixelAtLat(double latDeg) const{

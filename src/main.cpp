@@ -2,6 +2,7 @@
 #include <QMainWindow>
 #include <QStatusBar>
 #include <QProcessEnvironment>
+#include <QObject>
 
 #include "map_view.h"
 #include "simulator.h"
@@ -41,28 +42,39 @@ int main(int argc, char** argv){
         win.statusBar()->showMessage(s);
     });
 
-    // ===== Mode EN LIGNE (MapTiler) =====
-    // export MAPTILER_KEY="ta_cle_api"
-    const QString key = QProcessEnvironment::systemEnvironment().value("MAPTILER_KEY");
-    if (!key.isEmpty()) {
-        // ✅ URL correcte MapTiler (256 px tiles)
-        map->setTilesTemplate("https://api.maptiler.com/maps/streets/256/{z}/{x}/{y}.png?key=" + key);
-
-        // (Optionnel) identité + petit rate limit
-        map->setNetworkIdentity("V2V-Simulator/1.0 (student@example.edu)",
-                                 "https://university.example/course/v2v");
-        map->setRequestRateLimitMs(80); // ~12 req/s
-
-        map->setCenterLonLat(7.7521, 48.5734, 13); // Strasbourg
-        win.statusBar()->showMessage("Online tiles via MapTiler • Molette=Zoom • Drag=Pan");
-    } else {
-        // ===== FALLBACK garanti (image locale) =====
-        map->loadImage("data/strasbourg.png");
-        win.statusBar()->showMessage("MAPTILER_KEY manquant → fallback image locale. export MAPTILER_KEY=YOUR_KEY pour la carte en ligne.", 8000);
-    }
-    map->setCenterLonLat(7.7521, 48.5734, 13);
-
     win.resize(1200, 800);
     win.show();
+
+    // --- Create simulator ---
+    Simulator simulator(const_cast<RoadGraph&>(graph), map);
+    map->setSimulator(&simulator);
+    QObject::connect(&simulator, &Simulator::ticked, map, [map](double){
+        map->update();
+    });
+
+
+    //GENERATE RANDOM CARS
+    std::vector<Vertex> vertices;
+    for (auto vp = boost::vertices(graph); vp.first != vp.second; ++vp.first) {
+        vertices.push_back(*vp.first);
+    }
+
+    const int NUM_CARS = 50;
+    for (int i = 0; i < NUM_CARS; ++i) {
+        Vertex start = vertices[rand() % vertices.size()];
+        Vertex goal = vertices[rand() % vertices.size()];
+        double speed = 13.9;           // 50 km/h in m/s
+        double range = 100.0;          // transmission range
+        double collisionDist = 5.0;    // 5 meters
+
+        Vehicule* car = new Vehicule(i, graph, start, goal, speed, range, collisionDist);
+        simulator.addVehicle(car);
+
+        qDebug() << "Vehicle created:" << i << "start" << start << "goal" << goal;
+        qDebug() << "Vehicle" << i << "position:" << car->getPosition() ;
+    }
+
+
+    simulator.start(50); // 20 FPS
     return app.exec();
 }

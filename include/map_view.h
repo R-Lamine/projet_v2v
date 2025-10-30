@@ -9,6 +9,9 @@
 #include <QPointer>
 #include <QTimer>
 
+
+class Simulator;
+
 struct TileKey {
     int z;
     int x;
@@ -44,6 +47,9 @@ public:
     double getOffsetX() const {return m_offsetX;}
     double getOffsetY() const {return m_offsetY;}
 
+    //setter
+    void setSimulator(Simulator* sim) { m_simulator = sim; }
+
     //util
     static void lonlatToPixel(double lonDeg, double latDeg, int z, double& px, double& py);
 
@@ -60,6 +66,9 @@ protected:
     void resizeEvent(QResizeEvent* ev) override;
 
 private:
+    // --
+    Simulator* m_simulator = nullptr;
+
     // ---- Fallback image ----
     QPixmap m_base;
 
@@ -93,6 +102,7 @@ private:
     void setCenterWorld(double px, double py, int zoom);
 
     void screenToLonLat(const QPoint& screenPos, double& lon, double& lat) const;
+    QPointF lonLatToScreen(double lon, double lat) const;
     double metersPerPixelAtLat(double latDeg) const;
 };
 

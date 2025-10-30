@@ -1,6 +1,5 @@
 #include "vehicule.h"
 #include "graph_builder.h"
-#include <iostream>
 
 //Constructor
 Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed, double range, double collisionDist)
