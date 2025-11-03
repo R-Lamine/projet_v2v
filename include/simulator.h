@@ -10,6 +10,7 @@
 #include "vehicule.h"
 #include "map_view.h"
 #include "graph_builder.h"
+#include "interference_graph.h"
 
 class Simulator : public QObject {
     Q_OBJECT
@@ -37,6 +38,9 @@ public:
 
     // Read-only access for rendering / UI
     const std::vector<Vehicule*>& vehicles() const { return m_vehicles; }
+
+    // Access to interference graph for visualization
+    const InterferenceGraph& interferenceGraph() const { return m_interferenceGraph; }
 
 signals:
     void simulationStarted();
@@ -70,6 +74,7 @@ private:
     bool m_collisionDetectionEnabled = true;
 
     std::vector<Vehicule*> m_vehicles;
+    InterferenceGraph m_interferenceGraph;
 };
 
 

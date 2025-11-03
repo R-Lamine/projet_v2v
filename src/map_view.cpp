@@ -85,16 +85,106 @@ void MapView::paintEvent(QPaintEvent*){
     //Draw vehicules on map
     if (m_simulator) {
         const auto& vehicles = m_simulator->vehicles();
+        const auto& interfGraph = m_simulator->interferenceGraph();
 
-        QBrush brush(Qt::red);
-        p.setBrush(brush);
-        p.setPen(Qt::red);
+        // Dessiner d'abord les rayons de transmission (cercles jaunes)
+        for (auto* v : vehicles) {
+            if (!v) continue;
+            
+            auto [lat, lon] = v->getPosition();
+            QPointF pt = lonLatToScreen(lon, lat);
+            
+            // Calculer le rayon en pixels
+            double range = v->getTransmissionRange(); // en mètres
+            double mpp = metersPerPixelAtLat(lat);
+            double radiusPixels = range / mpp;
+            
+            // Dessiner un cercle semi-transparent pour le rayon
+            QPen rangePen(QColor(255, 255, 0, 255)); // Jaune semi-transparent
+            rangePen.setWidth(3); // Épaisseur augmentée à 3 pixels
+            p.setPen(rangePen);
+            p.setBrush(Qt::NoBrush);
+            p.drawEllipse(pt, radiusPixels, radiusPixels);
+        }
+
+        // Dessiner d'abord les connexions transitives (lignes bleues pointillées)
+        QPen transitivePen(QColor(0, 150, 255, 255)); // Bleu semi-transparent
+        transitivePen.setWidth(3);
+        transitivePen.setStyle(Qt::DashLine); // Ligne pointillée
+        p.setPen(transitivePen);
 
         for (auto* v : vehicles) {
-            auto [lat, lon] = v->getPosition();
+            if (!v) continue;
+            
+            auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
+            auto allReachable = interfGraph.getReachableVehicles(v->getId());
+            auto [lat1, lon1] = v->getPosition();
+            QPointF pt1 = lonLatToScreen(lon1, lat1);
 
-            QPointF pt= lonLatToScreen(lon, lat); // or use a function that converts lon/lat → screen
-            p.drawEllipse(pt, 8, 8);  // small circle representing vehicle
+            // Dessiner les connexions transitives (accessibles mais pas directs)
+            for (int reachableId : allReachable) {
+                // Si c'est un voisin direct, on le saute (sera dessiné après)
+                if (directNeighbors.find(reachableId) != directNeighbors.end()) {
+                    continue;
+                }
+                
+                // Trouver le véhicule accessible
+                for (auto* reachable : vehicles) {
+                    if (reachable && reachable->getId() == reachableId) {
+                        auto [lat2, lon2] = reachable->getPosition();
+                        QPointF pt2 = lonLatToScreen(lon2, lat2);
+                        
+                        // Ne dessiner la ligne qu'une seule fois
+                        if (v->getId() < reachableId) {
+                            p.drawLine(pt1, pt2);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Dessiner ensuite les connexions directes (lignes vertes épaisses)
+        QPen connectionPen(QColor(0, 255, 0, 255)); // Vert visible
+        connectionPen.setWidth(2);
+        p.setPen(connectionPen);
+
+        // Dessiner les connexions directes
+        for (auto* v : vehicles) {
+            if (!v) continue;
+            
+            auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
+            auto [lat1, lon1] = v->getPosition();
+            QPointF pt1 = lonLatToScreen(lon1, lat1);
+
+            for (int neighborId : directNeighbors) {
+                // Trouver le véhicule voisin
+                for (auto* neighbor : vehicles) {
+                    if (neighbor && neighbor->getId() == neighborId) {
+                        auto [lat2, lon2] = neighbor->getPosition();
+                        QPointF pt2 = lonLatToScreen(lon2, lat2);
+                        
+                        // Ne dessiner la ligne qu'une seule fois (éviter les doublons)
+                        if (v->getId() < neighborId) {
+                            p.drawLine(pt1, pt2);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Dessiner les véhicules (points rouges) par-dessus tout
+        for (auto* v : vehicles) {
+            if (!v) continue;
+            
+            auto [lat, lon] = v->getPosition();
+            QPointF pt = lonLatToScreen(lon, lat);
+            
+            // Cercle rouge pour le véhicule
+            p.setBrush(QBrush(Qt::red));
+            p.setPen(QPen(Qt::darkRed, 2));
+            p.drawEllipse(pt, 6, 6);  // Point rouge pour le véhicule
         }
     }
 

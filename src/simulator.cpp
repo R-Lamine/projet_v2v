@@ -46,9 +46,13 @@ void Simulator::onTick() {
     double deltaTime = m_elapsed.restart() / 1000.0; // seconds
     deltaTime *= m_speedMultiplier;
 
+    // Mise à jour de la position des véhicules
     for (Vehicule* v : m_vehicles) {
         if(v) v->update(deltaTime);
     }
+
+    // Reconstruction du graphe d'interférence avec les nouvelles positions
+    m_interferenceGraph.buildGraph(m_vehicles);
 
     emit ticked(deltaTime);
 }

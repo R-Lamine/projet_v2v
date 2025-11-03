@@ -3,21 +3,41 @@
 #include <QStatusBar>
 #include <QProcessEnvironment>
 #include <QObject>
+#include <iostream>
 
 #include "map_view.h"
 #include "simulator.h"
 #include "graph_builder.h"
 #include "osm_reader.h"
+#include "interference_graph_test.h"
 
 #define DELTA_TIME 0.5
 #define CAR_COUNT 10
 
 int main(int argc, char** argv){
+    
+    /*
+    // ----------------------
+    // Tests unitaires du graphe d'interférence
+    // ----------------------
+    std::cout << "\nLancement des tests unitaires\n" << std::endl;
+    
+    InterferenceGraphTest tester;
+    tester.runAllTests();
+    tester.printReport();
+    
+    std::cout << "\nAppuyez sur Entrée pour continuer vers l'application..." << std::endl;
+    std::cin.get();
+    */
+    
+    // ----------------------
+    // Mode normal : Application graphique
+    // ----------------------
     QApplication app(argc, argv);
 
     // ----------------------
     //  Load OSM data
-    OSMReader reader("../data/strasbourg.osm.pbf");
+    OSMReader reader("../../data/strasbourg.osm.pbf");
     reader.read();
     reader.printSummary();
 
@@ -64,7 +84,7 @@ int main(int argc, char** argv){
         Vertex start = vertices[rand() % vertices.size()];
         Vertex goal = vertices[rand() % vertices.size()];
         double speed = 13.9;           // 50 km/h in m/s
-        double range = 100.0;          // transmission range
+        double range = 1500.0;          // transmission range 
         double collisionDist = 5.0;    // 5 meters
 
         Vehicule* car = new Vehicule(i, graph, start, goal, speed, range, collisionDist);
