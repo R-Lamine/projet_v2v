@@ -12,6 +12,7 @@ struct VertexData {
 struct EdgeData {
     double distance;   // distance entre les deux sommets (en mètres)
     bool oneway;       // true si la route est à sens unique
+    std::string type;  //highway type
 };
 
 // Définition du graphe Boost

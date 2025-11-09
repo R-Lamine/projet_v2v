@@ -82,6 +82,87 @@ void MapView::paintEvent(QPaintEvent*){
             p.drawLine(0 - (int)m_offsetX, y - (int)m_offsetY, 4096 - (int)m_offsetX, y - (int)m_offsetY);
     }
 
+
+    // ----------- DEBUG --------
+    // draw edges (ways) on map to see which are detected
+    QPen pen(Qt::red, 10);
+    p.setPen(pen);
+    p.drawPoint(width()/2, height()/2);
+
+    const auto& graph = m_simulator->getGraph();
+    int drawn = 0;
+    /*/ Draw edges first
+    for (auto ep = boost::edges(graph); ep.first != ep.second; ++ep.first) {
+        Edge e = *ep.first;
+        Vertex s = boost::source(e, graph);
+        Vertex t = boost::target(e, graph);
+
+        // récupère les coordonnées lat/lon
+        double lat1 = graph[s].lat;
+        double lon1 = graph[s].lon;
+        double lat2 = graph[t].lat;
+        double lon2 = graph[t].lon;
+
+        // convertit en pixels
+        QPointF p1 = lonLatToScreen(lon1, lat1);
+        QPointF p2 = lonLatToScreen(lon2, lat2);
+
+        // couleur et épaisseur selon type de route
+        QColor color;
+        int width = 3; // default thickness
+        const std::string& type = graph[e].type;
+
+
+        if (type == "motorway" || type == "motorway_link")  {
+            drawn ++;
+            color = QColor(255, 0, 0);  // bright red
+            width = 4;
+        } else if (type == "trunk" || type == "trunk_link") {
+            drawn ++;
+            color = QColor(255, 128, 0); // orange
+            width = 3;
+        } else if (type == "primary" || type == "primary_link") {
+            drawn ++;
+            color = QColor(255, 255, 0); // yellow
+            width = 3;
+        } else if (type == "secondary" || type == "secondary_link") {
+            drawn ++;
+            color = QColor(0, 0, 255);   // blue
+            width = 2;
+        } else if (type == "tertiary" ) {
+            drawn ++;
+            color = QColor(0, 255, 0);   // green
+            width = 1;
+        } else { color = QColor(128, 128, 128); // gray for footway, unknown, etc.
+            width = 1; }
+
+        QPen pen(color, width*2 ,  Qt::SolidLine);
+        pen.setCapStyle(Qt::RoundCap); // nicer line endings
+        p.setPen(pen);
+
+        p.drawLine(p1, p2);
+
+    }
+
+    // Draw nodes on top
+    int drawnNodes = 0;
+    QBrush nodeBrush(Qt::red);
+    p.setBrush(nodeBrush);
+    p.setPen(Qt::NoPen);
+
+    for (auto vp = boost::vertices(graph); vp.first != vp.second; ++vp.first) {
+        Vertex v = *vp.first;
+        QPointF pos = lonLatToScreen(graph[v].lat, graph[v].lon);
+
+        // draw small red square centered on node
+        drawnNodes ++;
+        int size = std::max(4.0, 8.0 / (1 << m_zoom));
+        QRectF rect(pos.x() - size / 2, pos.y() - size / 2, size, size);
+        p.drawRect(rect);
+    }
+    */
+
+
     //Draw vehicules on map
     if (m_simulator) {
         const auto& vehicles = m_simulator->vehicles();
@@ -109,7 +190,7 @@ void MapView::paintEvent(QPaintEvent*){
 
         // Dessiner d'abord les connexions transitives (lignes bleues pointillées)
         QPen transitivePen(QColor(0, 150, 255, 255)); // Bleu semi-transparent
-        transitivePen.setWidth(3);
+        transitivePen.setWidth(2);
         transitivePen.setStyle(Qt::DashLine); // Ligne pointillée
         p.setPen(transitivePen);
 

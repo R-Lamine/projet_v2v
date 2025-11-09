@@ -40,6 +40,14 @@ public:
         // On vérifie si la route est à sens unique
         way.oneway = w.tags().has_tag("oneway", "yes");
 
+        // type de route
+        if (w.tags().has_key("highway")) {
+            way.highwayType = w.tags().get_value_by_key("highway");
+        } else {
+            way.highwayType = "unknown";
+        }
+       // std::cout << "Way ID: " << way.id << " type: " << way.highwayType << std::endl;
+
         // On ajoute la route à la liste des ways
         ways.push_back(way);
     }

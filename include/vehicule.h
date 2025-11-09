@@ -35,6 +35,36 @@ public:
     double calculateDist(Vehicule from) const;
     std::pair<double, double> getPosition() const;
 
+    /**
+     * @brief Called when car reaches dest to switch goal and start Vertex
+     * so that the car keeps moving
+    */
+    void DestReached();
+
+    /**
+     * @brief pickNextEdge by iterating on outgoing Edges from currentEdge
+     * @return random outgoing Edge
+     */
+    Vertex pickNextEdge();
+
+    /**
+     * @brief checks road validity for car movement/ placement
+     * @param the Edge to check, and graph
+     * @return boolean
+     */
+    static bool isValidRoad(const std::string& type);
+    static bool isValidVertex(Vertex v, const RoadGraph& graph);
+
+
+    /**
+     * @brief Check if a vertex has at least one valid outgoing edge
+     * @param v
+     * @param graph
+     * @return boolean
+     */
+    static bool hasValidOutgoingEdge(Vertex v, const RoadGraph& graph);
+
+
     //getters
     int getId() const { return id; }
     double getTransmissionRange() const { return transmissionRange; }
@@ -56,6 +86,7 @@ private:
 
     Vertex nextVertex;
     Edge currEdge;
+    Vertex previousVertex;
     double collisionDist;
     double transmissionRange;
     double speed;

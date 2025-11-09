@@ -42,6 +42,8 @@ public:
     // Access to interference graph for visualization
     const InterferenceGraph& interferenceGraph() const { return m_interferenceGraph; }
 
+   const RoadGraph& getGraph() const {return graph;}
+
 signals:
     void simulationStarted();
     void simulationPaused();

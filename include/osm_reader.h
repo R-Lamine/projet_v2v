@@ -12,6 +12,7 @@ struct OSMWay {
     long id;
     std::vector<long> nodeRefs;
     bool oneway;
+    std::string highwayType;
 };
 
 class OSMReader {

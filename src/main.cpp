@@ -37,7 +37,7 @@ int main(int argc, char** argv){
 
     // ----------------------
     //  Load OSM data
-    OSMReader reader("../../data/strasbourg.osm.pbf");
+    OSMReader reader("../data/strasbourg.osm.pbf");
     reader.read();
     reader.printSummary();
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv){
 
     MapView* map = new MapView(&win);
     map->setTilesTemplate("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
-    map->setCenterLonLat(7.7521, 48.5734, 14);
+    map->setCenterLonLat(7.7521, 48.5734, 16);
 
     win.setCentralWidget(map);
     QObject::connect(map, &MapView::cursorInfoChanged, &win, [&](const QString& s){
@@ -79,22 +79,34 @@ int main(int argc, char** argv){
         vertices.push_back(*vp.first);
     }
 
-    const int NUM_CARS = 50;
+    const int NUM_CARS = 100;
     for (int i = 0; i < NUM_CARS; ++i) {
-        Vertex start = vertices[rand() % vertices.size()];
-        Vertex goal = vertices[rand() % vertices.size()];
-        double speed = 13.9;           // 50 km/h in m/s
-        double range = 1500.0;          // transmission range 
-        double collisionDist = 5.0;    // 5 meters
+        Vertex start, goal;
+
+        // Pick valid start vertex
+        do {
+            start = vertices[rand() % vertices.size()];
+        } while (!Vehicule::isValidVertex(start, graph) && !Vehicule::hasValidOutgoingEdge(start, graph));
+
+        // Pick valid goal vertex
+        do {
+            goal = vertices[rand() % vertices.size()];
+        } while (!Vehicule::isValidVertex(start, graph) && !Vehicule::hasValidOutgoingEdge(start, graph));
+
+        double speed = 14;          // 50 km/h in m/s
+        double range = 1000.0;        // transmission range
+        double collisionDist = 5.0;   // 5 meters
 
         Vehicule* car = new Vehicule(i, graph, start, goal, speed, range, collisionDist);
         simulator.addVehicle(car);
 
-        qDebug() << "Vehicle created:" << i << "start" << start << "goal" << goal;
-        qDebug() << "Vehicle" << i << "position:" << car->getPosition() ;
+
+       // qDebug() << "Vehicle created:" << i << "start" << start << "goal" << goal;
+        // qDebug() << "Vehicle" << i << "position:" << car->getPosition() ;
+
     }
 
+    simulator.start(1000); // 20 FPS
 
-    simulator.start(50); // 20 FPS
-    return app.exec();
+        return app.exec();
 }

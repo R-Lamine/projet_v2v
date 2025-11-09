@@ -24,6 +24,9 @@ void GraphBuilder::buildGraph() {
 
     // Étape 2 : création des arêtes à partir des ways
     for (const auto& way : ways) {
+
+        //if (!Vehicule::isValidRoad(way.highwayType)) continue;
+
         for (size_t i = 1; i < way.nodeRefs.size(); ++i) {
             long id1 = way.nodeRefs[i - 1];
             long id2 = way.nodeRefs[i];
@@ -42,6 +45,7 @@ void GraphBuilder::buildGraph() {
                 if (inserted) {
                     graph[e].distance = dist;
                     graph[e].oneway = way.oneway;
+                    graph[e].type = way.highwayType;
                 }
             }
         }

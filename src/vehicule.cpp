@@ -17,71 +17,117 @@ Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, do
 //Destructor
 Vehicule::~Vehicule(void) {}
 
+bool Vehicule::isValidRoad(const std::string& type) {
+    static const std::vector<std::string> valid = {
+        "motorway","trunk","primary","secondary","tertiary",
+        "motorway_link","trunk_link","primary_link","secondary_link",
+        "unclassified"
+    };
+    return std::find(valid.begin(), valid.end(), type) != valid.end();
+}
 
-/**
- * @brief Vehicule::update, select next Edge randomly for now, will use shortest part later (Djikstra)
- * @param deltaTime
- */
+bool Vehicule::isValidVertex(Vertex v, const RoadGraph& graph) {
+    auto [itStart, itEnd] = boost::out_edges(v, graph);
+    // vertex must have at least one valid outgoing edge
+    for (auto it = itStart; it != itEnd; ++it) {
+        const Edge e = *it;
+        if (Vehicule::isValidRoad(graph[e].type)) return true;
+    }
+    return false;
+}
+
+bool Vehicule::hasValidOutgoingEdge(Vertex v, const RoadGraph& graph) {
+    auto [itStart, itEnd] = boost::out_edges(v, graph);
+    for (auto it = itStart; it != itEnd; ++it) {
+        const Edge e = *it;
+        if (isValidRoad(graph[e].type)) {
+            return true; // found at least one valid road
+        }
+    }
+    return false; // no valid outgoing road — not usable
+}
+
+
+void Vehicule::DestReached() {
+    std::swap(start, goal);
+    edgeLength = 0.0;
+}
+
+Vertex Vehicule::pickNextEdge() {
+    auto [itStart, itEnd] = boost::out_edges(currVertex, graph);
+
+    std::vector<Edge> validEdges;
+    Edge backEdge = Edge();   // placeholder for the edge going back to previous vertex
+    bool hasBackEdge = false;
+
+    for (auto it = itStart; it != itEnd; ++it) {
+        Edge e = *it;
+        Vertex target = boost::target(e, graph);
+
+        if (!isValidRoad(graph[e].type)) continue;
+
+        if (target == previousVertex) {
+            // remember this edge in case we have no other choice
+            backEdge = e;
+            hasBackEdge = true;
+        } else {
+            validEdges.push_back(e);
+        }
+    }
+
+    if (validEdges.empty()) {
+        if (hasBackEdge) {
+            validEdges.push_back(backEdge); // only option is to go back
+        } else {
+            // truly stuck: swap start/goal
+            std::swap(start, goal);
+            nextVertex = start;
+            edgeLength = 0.0;
+            return nextVertex;
+        }
+    }
+
+    // pick random valid edge (avoiding immediate backtracking if possible)
+    currEdge = validEdges[rand() % validEdges.size()];
+    previousVertex = currVertex;  // remember current as previous
+    nextVertex = boost::target(currEdge, graph);
+    edgeLength = graph[currEdge].distance;
+    positionOnEdge = 0.0;
+
+    return nextVertex;
+}
+
 void Vehicule::update(double deltaTime) {
-    if (destReached) return;
     if (currVertex == goal) {
-        destReached = true;
+        DestReached();
         return;
     }
 
-    // If we have no valid current edge, try to pick one from currVertex
+    // If no edge is selected yet
     if (edgeLength <= 0.0) {
-        auto [edgeIteratorStart, edgeIteratorEnd] = boost::out_edges(currVertex, graph);
-        if (edgeIteratorStart == edgeIteratorEnd)
-        {
-            destReached = true;
-            return;
-        }
-
-        // Pick a random outgoing edge instead of always the first
-        std::advance(edgeIteratorStart, rand() % std::distance(edgeIteratorStart, edgeIteratorEnd));
-        currEdge = *edgeIteratorStart;
-        nextVertex = boost::target(currEdge, graph);
-        edgeLength = graph[currEdge].distance;
-        positionOnEdge = 0.0;
-
-        // set initial speed if needed
-        //if (speed <= 0.0) speed = 13.9; // e.g. 50 km/h in m/s
+        pickNextEdge();
     }
 
-    // advance
+    // advance along the current edge
     positionOnEdge += speed * deltaTime;
 
-    // reached end
-    if (positionOnEdge >= edgeLength) {
-        // compute overshoot
+    // check if we've reached or overshot the end of the edge
+    while (positionOnEdge >= edgeLength) {
         double overshoot = positionOnEdge - edgeLength;
-
-        // arrive at next vertex
+        previousVertex = currVertex;  // remember where we came from
         currVertex = nextVertex;
+
         if (currVertex == goal) {
-            destReached = true;
+            DestReached();
             return;
         }
 
-        // pick next outgoing edge randomly
-        auto [edgeIteratorStart, edgeIteratorEnd] = boost::out_edges(currVertex, graph);
-        if (edgeIteratorStart == edgeIteratorEnd) {
-            // dead end or destination
-            destReached = true;
-            positionOnEdge = edgeLength; // clamp
-            return;
-        }
-
-        std::advance(edgeIteratorStart, rand() % std::distance(edgeIteratorStart, edgeIteratorEnd));
-        currEdge = *edgeIteratorStart;
-        nextVertex = boost::target(currEdge, graph);
-        edgeLength = graph[currEdge].distance;
-
-        // start on new edge using overshoot
-        positionOnEdge = std::min(overshoot, edgeLength);
+        pickNextEdge();  // choose next edge
+        positionOnEdge = overshoot; // carry remaining distance to next edge
     }
 }
+
+
 
 
 std::pair<double,double> Vehicule::getPosition() const {
