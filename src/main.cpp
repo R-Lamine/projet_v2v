@@ -106,7 +106,7 @@ int main(int argc, char** argv){
 
     }
 
-    simulator.start(1000); // 20 FPS
+    simulator.start(50); // 20 FPSS
 
         return app.exec();
 }
