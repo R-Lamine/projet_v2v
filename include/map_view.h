@@ -102,6 +102,9 @@ private:
     void setCenterWorld(double px, double py, int zoom);
 
     void screenToLonLat(const QPoint& screenPos, double& lon, double& lat) const;
+    void screenToLonLat(int x, int y, double& lon, double& lat) const {
+        screenToLonLat(QPoint(x, y), lon, lat);
+    }
     QPointF lonLatToScreen(double lon, double lat) const;
     double metersPerPixelAtLat(double latDeg) const;
 };

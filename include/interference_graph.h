@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include "spatial_grid.h"
 
 class Vehicule;
 
@@ -68,6 +69,31 @@ public:
      */
     void printStats() const;
 
+    /**
+     * @brief Active ou désactive l'optimisation par grille spatiale
+     * @param enable true pour activer, false pour désactiver
+     */
+    void enableSpatialOptimization(bool enable) { m_useSpatialGrid = enable; }
+
+    /**
+     * @brief Vérifie si l'optimisation spatiale est active
+     */
+    bool isSpatialOptimizationEnabled() const { return m_useSpatialGrid; }
+
+    /**
+     * @brief Obtient une référence constante à la grille spatiale
+     */
+    const SpatialGrid& getSpatialGrid() const { return m_spatialGrid; }
+
+    /**
+     * @brief Initialise la grille spatiale une fois pour toutes (K-means)
+     * @param vehicles Liste des véhicules pour calculer la disposition optimale
+     * 
+     * Cette méthode doit être appelée UNE SEULE FOIS au début de la simulation.
+     * Elle calcule les positions des antennes selon la densité des véhicules.
+     */
+    void initializeSpatialGrid(const std::vector<Vehicule*>& vehicles);
+
 private:
     /**
      * @brief Calcule la fermeture transitive du graphe
@@ -82,6 +108,18 @@ private:
      */
     std::unordered_set<int> bfsReachable(int startId) const;
 
+    /**
+     * @brief Construit le graphe avec la méthode classique O(n²)
+     * @param vehicles Liste de tous les véhicules
+     */
+    void buildGraphClassic(const std::vector<Vehicule*>& vehicles);
+
+    /**
+     * @brief Construit le graphe avec optimisation spatiale O(n × k)
+     * @param vehicles Liste de tous les véhicules
+     */
+    void buildGraphWithSpatialGrid(const std::vector<Vehicule*>& vehicles);
+
 private:
     // Liste d'adjacence pour les connexions directes (basées sur la portée)
     std::unordered_map<int, std::unordered_set<int>> m_adjacencyList;
@@ -89,6 +127,14 @@ private:
     // Fermeture transitive: pour chaque véhicule, tous les véhicules accessibles
     // (directement ou indirectement)
     std::unordered_map<int, std::unordered_set<int>> m_transitiveClosure;
+
+    // Grille spatiale pour optimisation des calculs de distance
+    SpatialGrid m_spatialGrid;
+    bool m_useSpatialGrid;
+    bool m_gridInitialized;  // Flag pour savoir si la grille a été initialisée
+
+    // Map pour accéder rapidement aux véhicules par ID
+    std::unordered_map<int, Vehicule*> m_vehicleMap;
 };
 
 #endif // INTERFERENCE_GRAPH_H

@@ -37,7 +37,7 @@ int main(int argc, char** argv){
 
     // ----------------------
     //  Load OSM data
-    OSMReader reader("../data/strasbourg.osm.pbf");
+    OSMReader reader("../../data/strasbourg.osm.pbf");
     reader.read();
     reader.printSummary();
 
@@ -79,7 +79,7 @@ int main(int argc, char** argv){
         vertices.push_back(*vp.first);
     }
 
-    const int NUM_CARS = 100;
+    const int NUM_CARS = 2000;
     for (int i = 0; i < NUM_CARS; ++i) {
         Vertex start, goal;
 
@@ -94,7 +94,7 @@ int main(int argc, char** argv){
         } while (!Vehicule::isValidVertex(start, graph) && !Vehicule::hasValidOutgoingEdge(start, graph));
 
         double speed = 14;          // 50 km/h in m/s
-        double range = 1000.0;        // transmission range
+        double range = 500.0;        // transmission range
         double collisionDist = 5.0;   // 5 meters
 
         Vehicule* car = new Vehicule(i, graph, start, goal, speed, range, collisionDist);

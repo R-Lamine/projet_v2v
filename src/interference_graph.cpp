@@ -2,8 +2,10 @@
 #include "vehicule.h"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
-InterferenceGraph::InterferenceGraph() {}
+InterferenceGraph::InterferenceGraph() 
+    : m_useSpatialGrid(true), m_gridInitialized(false) {}
 
 InterferenceGraph::~InterferenceGraph() {
     clear();
@@ -12,25 +14,55 @@ InterferenceGraph::~InterferenceGraph() {
 void InterferenceGraph::clear() {
     m_adjacencyList.clear();
     m_transitiveClosure.clear();
+    m_vehicleMap.clear();
+    m_spatialGrid.clear();
 }
 
 void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
-    // Étape 1: Effacer le graphe précédent
-    clear();
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    // Effacer seulement les listes d'adjacence, pas la grille spatiale
+    m_adjacencyList.clear();
+    m_transitiveClosure.clear();
+    m_vehicleMap.clear();
 
     if (vehicles.empty()) {
         return;
     }
 
-    // Étape 2: Initialiser les ensembles vides pour chaque véhicule
+    // Construire la map pour accès rapide et initialiser les ensembles
     for (auto* v : vehicles) {
         if (v) {
+            m_vehicleMap[v->getId()] = v;
             m_adjacencyList[v->getId()] = std::unordered_set<int>();
         }
     }
 
-    // Étape 3: Construire les connexions directes basées sur la portée de transmission
-    // Pour chaque paire de véhicules, vérifier s'ils sont dans la portée l'un de l'autre
+    // Grille spatiale : si déjà initialisée, juste réassigner les véhicules
+    if (m_useSpatialGrid && m_gridInitialized && vehicles.size() >= 20) {
+        m_spatialGrid.assignVehiclesToAntennas(vehicles);
+    }
+
+    // Construire les connexions directes
+    if (m_useSpatialGrid && vehicles.size() >= 20) {
+        buildGraphWithSpatialGrid(vehicles);
+    } else {
+        buildGraphClassic(vehicles);
+    }
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    
+    // Toujours afficher pour debug avec beaucoup de véhicules
+    if (vehicles.size() > 1000) {
+        std::cout << "[buildGraph] " << vehicles.size() << " véhicules, " 
+                  << duration.count() / 1000.0 << " ms ("
+                  << (m_useSpatialGrid && vehicles.size() >= 20 ? "optimisé" : "classique") << ")" << std::endl;
+    }
+}
+
+void InterferenceGraph::buildGraphClassic(const std::vector<Vehicule*>& vehicles) {
+    // Méthode O(n²): comparer toutes les paires
     for (size_t i = 0; i < vehicles.size(); ++i) {
         Vehicule* v1 = vehicles[i];
         if (!v1) continue;
@@ -39,45 +71,55 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
             Vehicule* v2 = vehicles[j];
             if (!v2) continue;
 
-            // Calculer la distance entre les deux véhicules
             double distance = v1->calculateDist(*v2);
-
-            // Vérifier si chaque véhicule est dans la portée de l'autre
             bool v1CanReachV2 = distance <= v1->getTransmissionRange();
             bool v2CanReachV1 = distance <= v2->getTransmissionRange();
 
-            // Les deux doivent pouvoir se joindre (communication bidirectionnelle)
             if (v1CanReachV2 && v2CanReachV1) {
-                // Ajouter la connexion bidirectionnelle
                 m_adjacencyList[v1->getId()].insert(v2->getId());
                 m_adjacencyList[v2->getId()].insert(v1->getId());
             }
         }
     }
+}
 
-    // Étape 4: Calculer la fermeture transitive
-    // Si A peut communiquer avec B et B avec C, alors A peut communiquer avec C
-    computeTransitiveClosure();
+void InterferenceGraph::buildGraphWithSpatialGrid(const std::vector<Vehicule*>& vehicles) {
+    // Méthode optimisée O(n × k): comparer uniquement avec les voisins spatiaux
+    int totalComparisons = 0;
+    int totalNearby = 0;
+    
+    for (auto* v1 : vehicles) {
+        if (!v1) continue;
 
-    // Étape 5: Mettre à jour les voisins de chaque véhicule
-    // Maintenant on considère tous les véhicules accessibles, pas seulement les directs
-    for (auto* v : vehicles) {
-        if (!v) continue;
-
-        v->clearNeighbors();
+        // Obtenir les véhicules proches via la grille spatiale
+        std::vector<int> nearbyIds = m_spatialGrid.getNearbyVehicles(v1->getId());
+        totalNearby += nearbyIds.size();
         
-        // Obtenir tous les véhicules accessibles (directement ou indirectement)
-        const auto& reachable = m_transitiveClosure[v->getId()];
-        
-        for (auto* other : vehicles) {
-            if (!other || other == v) continue;
+        for (int nearbyId : nearbyIds) {
+            // Éviter les doublons (on traite chaque paire une seule fois)
+            if (nearbyId <= v1->getId()) continue;
             
-            // Si le véhicule est accessible, l'ajouter comme voisin
-            if (reachable.find(other->getId()) != reachable.end()) {
-                v->addNeighbor(other);
+            totalComparisons++;
+            
+            auto it = m_vehicleMap.find(nearbyId);
+            if (it == m_vehicleMap.end()) continue;
+            
+            Vehicule* v2 = it->second;
+            if (!v2) continue;
+
+            double distance = v1->calculateDist(*v2);
+            bool v1CanReachV2 = distance <= v1->getTransmissionRange();
+            bool v2CanReachV1 = distance <= v2->getTransmissionRange();
+
+            if (v1CanReachV2 && v2CanReachV1) {
+                m_adjacencyList[v1->getId()].insert(v2->getId());
+                m_adjacencyList[v2->getId()].insert(v1->getId());
             }
         }
     }
+    
+    std::cout << "[buildGraphWithSpatialGrid] " << totalComparisons << " comparaisons de distance effectuées"
+              << " (moyenne " << (totalNearby / vehicles.size()) << " voisins par véhicule)" << std::endl;
 }
 
 void InterferenceGraph::computeTransitiveClosure() {
@@ -180,4 +222,41 @@ void InterferenceGraph::printStats() const {
                   << reachable.size() << " véhicules accessibles" << std::endl;
     }
     std::cout << "==========================================\n" << std::endl;
+}
+
+void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehicles) {
+    if (!m_useSpatialGrid || vehicles.size() < 20) {
+        std::cout << "[InterferenceGraph] Pas assez de véhicules pour la grille spatiale" << std::endl;
+        return;
+    }
+    
+    if (m_gridInitialized) {
+        std::cout << "[InterferenceGraph] Grille spatiale déjà initialisée" << std::endl;
+        return;
+    }
+    
+    std::cout << "[InterferenceGraph] Initialisation de la grille spatiale (K-means)..." << std::endl;
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    int numMacro = 10;
+    int numMicro = 10;
+    
+    if (vehicles.size() > 500) {
+        numMacro = 20;
+        numMicro = 15;
+    }
+    if (vehicles.size() > 2000) {
+        numMacro = 30;
+        numMicro = 20;
+    }
+    
+    m_spatialGrid.initialize(vehicles, numMacro, numMicro);
+    m_gridInitialized = true;
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    
+    std::cout << "[InterferenceGraph] Grille initialisée en " << duration.count() 
+              << " ms avec " << numMacro << " macro et " 
+              << numMicro << " micro antennes par macro" << std::endl;
 }

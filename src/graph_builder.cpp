@@ -57,8 +57,23 @@ void GraphBuilder::buildGraph() {
 // Calcule la distance géographique entre deux points (formule de Haversine)
 double GraphBuilder::distance(double lat1, double lon1, double lat2, double lon2) {
     const double R = 6371000.0; // rayon de la Terre en mètres
-    double dLat = (lat2 - lat1) * M_PI / 180.0;
-    double dLon = (lon2 - lon1) * M_PI / 180.0;
+    
+    // OPTIMISATION: Pour les courtes distances (typique en V2V: < 2km),
+    // utiliser une approximation équirectangulaire BEAUCOUP plus rapide
+    // (pas de sin/cos/atan2/sqrt)
+    double dLat = (lat2 - lat1);
+    double dLon = (lon2 - lon1);
+    
+    // Si la distance est petite (< 0.02° soit ~2km), utiliser l'approximation rapide
+    if (abs(dLat) < 0.02 && abs(dLon) < 0.02) {
+        double x = dLon * M_PI / 180.0 * cos((lat1 + lat2) / 2.0 * M_PI / 180.0);
+        double y = dLat * M_PI / 180.0;
+        return R * sqrt(x * x + y * y);
+    }
+    
+    // Sinon, utiliser Haversine complète pour les longues distances
+    dLat = dLat * M_PI / 180.0;
+    dLon = dLon * M_PI / 180.0;
     double a = sin(dLat / 2) * sin(dLat / 2) +
                cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
                sin(dLon / 2) * sin(dLon / 2);

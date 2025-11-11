@@ -22,6 +22,13 @@ Simulator::~Simulator() {
 void Simulator::start(int tickIntervalMs) {
     m_tickIntervalMs = tickIntervalMs;
     m_elapsed.restart();
+    
+    // Initialiser la grille spatiale UNE SEULE FOIS au démarrage
+    // Ceci évite de refaire le K-means à chaque tick
+    if (!m_vehicles.empty()) {
+        m_interferenceGraph.initializeSpatialGrid(m_vehicles);
+    }
+    
     m_timer->start(tickIntervalMs);
     emit simulationStarted();
 }
@@ -47,15 +54,26 @@ void Simulator::onTick() {
     deltaTime *= m_speedMultiplier;
 
     static int tickCount = 0;
+    tickCount++;
 
     // Mise à jour de la position des véhicules
     for (Vehicule* v : m_vehicles) {
         if(v) v->update(deltaTime);
     }
 
-    // Reconstruction du graphe d'interférence seulement tous les 10 ticks (500ms)
-    // Cela améliore grandement la fluidité
-    if (tickCount++ % 10 == 0) {
+    // Avec beaucoup de véhicules (>1000), ne reconstruire le graphe que rarement
+    int rebuildInterval = 10; // Par défaut 500ms
+    if (m_vehicles.size() > 500) {
+        rebuildInterval = 20; // 5 secondes pour >500 véhicules
+    }
+    if (m_vehicles.size() > 1000) {
+        rebuildInterval = 40; // 10 secondes pour >1000 véhicules
+    }
+    if (m_vehicles.size() > 2000) {
+        rebuildInterval = 100; // 30 secondes pour >2000 véhicules - limite les freezes
+    }
+    
+    if (tickCount % rebuildInterval == 0) {
         m_interferenceGraph.buildGraph(m_vehicles);
     }
 
