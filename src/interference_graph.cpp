@@ -68,22 +68,8 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
                 }
             }
         }
-    } else {
-        // Sans fermeture transitive, on met juste les voisins directs
-        for (auto* v : vehicles) {
-            if (!v) continue;
-
-            v->clearNeighbors();
-            const auto& neighbors = m_adjacencyList[v->getId()];
-            
-            for (auto* other : vehicles) {
-                if (!other || other == v) continue;
-                if (neighbors.find(other->getId()) != neighbors.end()) {
-                    v->addNeighbor(other);
-                }
-            }
-        }
     }
+    // Sinon, ne rien faire - pas de mise à jour des voisins
 
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
