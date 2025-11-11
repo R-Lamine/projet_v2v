@@ -41,6 +41,7 @@ public:
 
     // Access to interference graph for visualization
     const InterferenceGraph& interferenceGraph() const { return m_interferenceGraph; }
+    InterferenceGraph& interferenceGraph() { return m_interferenceGraph; }
 
    const RoadGraph& getGraph() const {return graph;}
 

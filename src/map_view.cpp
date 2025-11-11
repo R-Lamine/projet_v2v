@@ -208,38 +208,40 @@ void MapView::paintEvent(QPaintEvent*){
 
         // Dessiner les connexions uniquement si peu de véhicules visibles
         if (drawDetails && visibleVehicles.size() < 200) {
-            // Dessiner d'abord les connexions transitives (lignes bleues pointillées)
-            QPen transitivePen(QColor(0, 150, 255, 255));
-            transitivePen.setWidth(2);
-            transitivePen.setStyle(Qt::DashLine);
-            p.setPen(transitivePen);
+            // Dessiner d'abord les connexions transitives (lignes bleues pointillées) si activé
+            if (m_showTransitiveConnections) {
+                QPen transitivePen(QColor(0, 150, 255, 255));
+                transitivePen.setWidth(2);
+                transitivePen.setStyle(Qt::DashLine);
+                p.setPen(transitivePen);
 
-            for (auto* v : visibleVehicles) {
-                auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
-                auto allReachable = interfGraph.getReachableVehicles(v->getId());
-                auto [lat1, lon1] = v->getPosition();
-                QPointF pt1 = lonLatToScreen(lon1, lat1);
+                for (auto* v : visibleVehicles) {
+                    auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
+                    auto allReachable = interfGraph.getReachableVehicles(v->getId());
+                    auto [lat1, lon1] = v->getPosition();
+                    QPointF pt1 = lonLatToScreen(lon1, lat1);
 
-                /*
-                // Dessiner les connexions transitives (accessibles mais pas directs)
-                for (int reachableId : allReachable) {
-                    if (directNeighbors.find(reachableId) != directNeighbors.end()) {
-                        continue;
-                    }
                     
-                    for (auto* reachable : vehicles) {
-                        if (reachable && reachable->getId() == reachableId) {
-                            auto [lat2, lon2] = reachable->getPosition();
-                            QPointF pt2 = lonLatToScreen(lon2, lat2);
-                            
-                            if (v->getId() < reachableId) {
-                                p.drawLine(pt1, pt2);
+                    // Dessiner les connexions transitives (accessibles mais pas directs)
+                    for (int reachableId : allReachable) {
+                        if (directNeighbors.find(reachableId) != directNeighbors.end()) {
+                            continue;
+                        }
+                        
+                        for (auto* reachable : vehicles) {
+                            if (reachable && reachable->getId() == reachableId) {
+                                auto [lat2, lon2] = reachable->getPosition();
+                                QPointF pt2 = lonLatToScreen(lon2, lat2);
+                                
+                                if (v->getId() < reachableId) {
+                                    p.drawLine(pt1, pt2);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
+                    
                 }
-                */
             }
 
             // Dessiner ensuite les connexions directes (lignes vertes épaisses)
@@ -399,6 +401,18 @@ void MapView::keyPressEvent(QKeyEvent* ev){
         case Qt::Key_Right:      m_offsetX += step; update();                  break;
         case Qt::Key_Up:         m_offsetY -= step; update();                  break;
         case Qt::Key_Down:       m_offsetY += step; update();                  break;
+        case Qt::Key_T: {
+            // Toggle transitive connections display and computation
+            m_showTransitiveConnections = !m_showTransitiveConnections;
+            if (m_simulator) {
+                auto& interfGraph = m_simulator->interferenceGraph();
+                interfGraph.enableTransitiveClosure(m_showTransitiveConnections);
+                std::cout << "[MapView] Connexions transitives " 
+                          << (m_showTransitiveConnections ? "activées" : "désactivées") << std::endl;
+            }
+            update();
+            break;
+        }
         default: QWidget::keyPressEvent(ev); break;
     }
 }

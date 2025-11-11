@@ -5,7 +5,7 @@
 #include <chrono>
 
 InterferenceGraph::InterferenceGraph() 
-    : m_useSpatialGrid(true), m_gridInitialized(false) {}
+    : m_useSpatialGrid(true), m_gridInitialized(false), m_computeTransitive(true) {}
 
 InterferenceGraph::~InterferenceGraph() {
     clear();
@@ -48,6 +48,41 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
         buildGraphWithSpatialGrid(vehicles);
     } else {
         buildGraphClassic(vehicles);
+    }
+
+    // Calculer la fermeture transitive (optimisée avec grille spatiale) si activé
+    if (m_computeTransitive) {
+        computeTransitiveClosure();
+
+        // Mettre à jour les voisins de chaque véhicule
+        for (auto* v : vehicles) {
+            if (!v) continue;
+
+            v->clearNeighbors();
+            const auto& reachable = m_transitiveClosure[v->getId()];
+            
+            for (auto* other : vehicles) {
+                if (!other || other == v) continue;
+                if (reachable.find(other->getId()) != reachable.end()) {
+                    v->addNeighbor(other);
+                }
+            }
+        }
+    } else {
+        // Sans fermeture transitive, on met juste les voisins directs
+        for (auto* v : vehicles) {
+            if (!v) continue;
+
+            v->clearNeighbors();
+            const auto& neighbors = m_adjacencyList[v->getId()];
+            
+            for (auto* other : vehicles) {
+                if (!other || other == v) continue;
+                if (neighbors.find(other->getId()) != neighbors.end()) {
+                    v->addNeighbor(other);
+                }
+            }
+        }
     }
 
     auto endTime = std::chrono::high_resolution_clock::now();

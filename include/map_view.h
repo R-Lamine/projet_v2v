@@ -72,6 +72,9 @@ private:
     // ---- Fallback image ----
     QPixmap m_base;
 
+    // ---- Toggle transitive connections ----
+    bool m_showTransitiveConnections = true;
+
     // ---- Tuiles XYZ ----
     QString m_tilesTemplate;
     QNetworkAccessManager m_net;

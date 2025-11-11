@@ -94,6 +94,17 @@ public:
      */
     void initializeSpatialGrid(const std::vector<Vehicule*>& vehicles);
 
+    /**
+     * @brief Active ou désactive le calcul de la fermeture transitive
+     * @param enable true pour activer, false pour désactiver
+     */
+    void enableTransitiveClosure(bool enable) { m_computeTransitive = enable; }
+
+    /**
+     * @brief Vérifie si la fermeture transitive est activée
+     */
+    bool isTransitiveClosureEnabled() const { return m_computeTransitive; }
+
 private:
     /**
      * @brief Calcule la fermeture transitive du graphe
@@ -132,6 +143,7 @@ private:
     SpatialGrid m_spatialGrid;
     bool m_useSpatialGrid;
     bool m_gridInitialized;  // Flag pour savoir si la grille a été initialisée
+    bool m_computeTransitive; // Flag pour activer/désactiver la fermeture transitive
 
     // Map pour accéder rapidement aux véhicules par ID
     std::unordered_map<int, Vehicule*> m_vehicleMap;
