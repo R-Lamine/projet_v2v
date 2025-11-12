@@ -10,6 +10,7 @@ include_directories(include)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+set(QT_QML_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 
 # ===============================
@@ -20,9 +21,9 @@ set(CMAKE_AUTOUIC ON)
 find_package(Boost REQUIRED)
 
 
-# Qt (for GUI visualization)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network)
+# Qt (for GUI visualization with QtLocation)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network Quick Qml Location Positioning)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network Quick Qml Location Positioning)
 
 
 # PROJ (geographic projection library)
@@ -38,7 +39,10 @@ include_directories(/usr/include/osmium)
 # ===============================
 file(GLOB SOURCES src/*.cpp include/*.h)
 
-add_executable(ConnectedVehicles ${SOURCES})
+# QML resources
+qt_add_resources(QML_RESOURCES resources.qrc)
+
+add_executable(ConnectedVehicles ${SOURCES} ${QML_RESOURCES})
 
 # Include headers
 target_include_directories(ConnectedVehicles PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -57,6 +61,10 @@ target_link_libraries(ConnectedVehicles
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::Location
+    Qt${QT_VERSION_MAJOR}::Positioning
 )
 
 message(STATUS "Qt version: ${Qt${QT_VERSION_MAJOR}_VERSION}")

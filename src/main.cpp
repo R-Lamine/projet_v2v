@@ -5,7 +5,7 @@
 #include <QObject>
 #include <iostream>
 
-#include "map_view.h"
+#include "map_view_qml.h"
 #include "simulator.h"
 #include "graph_builder.h"
 #include "osm_reader.h"
@@ -51,14 +51,13 @@ int main(int argc, char** argv){
     // Create main window
     // ----------------------
     QMainWindow win;
-    win.setWindowTitle("V2V ");
+    win.setWindowTitle("V2V Simulator - QtLocation");
 
-    MapView* map = new MapView(&win);
-    map->setTilesTemplate("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    MapViewQML* map = new MapViewQML(&win);
     map->setCenterLonLat(7.7521, 48.5734, 16);
 
     win.setCentralWidget(map);
-    QObject::connect(map, &MapView::cursorInfoChanged, &win, [&](const QString& s){
+    QObject::connect(map, &MapViewQML::cursorInfoChanged, &win, [&](const QString& s){
         win.statusBar()->showMessage(s);
     });
 
@@ -66,10 +65,10 @@ int main(int argc, char** argv){
     win.show();
 
     // --- Create simulator ---
-    Simulator simulator(const_cast<RoadGraph&>(graph), map);
+    Simulator simulator(const_cast<RoadGraph&>(graph), nullptr);
     map->setSimulator(&simulator);
     QObject::connect(&simulator, &Simulator::ticked, map, [map](double){
-        map->update();
+        map->updateVehicles();
     });
 
 
