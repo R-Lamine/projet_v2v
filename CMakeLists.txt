@@ -22,8 +22,9 @@ find_package(Boost REQUIRED)
 
 
 # Qt (for GUI visualization with QtLocation)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network Quick Qml Location Positioning)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network Quick Qml Location Positioning)
+# Force Qt5 pour éviter les problèmes de compatibilité
+find_package(Qt5 REQUIRED COMPONENTS Widgets Gui Core Network Quick Qml QuickWidgets Location Positioning)
+set(QT_VERSION_MAJOR 5)
 
 
 # PROJ (geographic projection library)
@@ -40,7 +41,7 @@ include_directories(/usr/include/osmium)
 file(GLOB SOURCES src/*.cpp include/*.h)
 
 # QML resources
-qt_add_resources(QML_RESOURCES resources.qrc)
+qt5_add_resources(QML_RESOURCES resources.qrc)
 
 add_executable(ConnectedVehicles ${SOURCES} ${QML_RESOURCES})
 
@@ -63,6 +64,7 @@ target_link_libraries(ConnectedVehicles
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::Quick
     Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::QuickWidgets
     Qt${QT_VERSION_MAJOR}::Location
     Qt${QT_VERSION_MAJOR}::Positioning
 )
