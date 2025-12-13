@@ -78,11 +78,20 @@ private:
     // ---- Toggle low quality tiles mode ----
     bool m_lowQualityMode = true;
 
+    // ---- Toggle dark theme ----
+    bool m_darkTheme = true;
+    QString m_darkTilesTemplate = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
+    QString m_lightTilesTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
     // ---- Tuiles XYZ ----
     QString m_tilesTemplate;
     QNetworkAccessManager m_net;
-    QCache<QString, QPixmap> m_memCache;                   // LRU cache (clé = URL)
+    QCache<QString, QPixmap> m_darkCache;                  // Cache pour tuiles sombres
+    QCache<QString, QPixmap> m_lightCache;                 // Cache pour tuiles claires
     QHash<TileKey, QPointer<QNetworkReply>> m_inflight;    // téléchargements en cours
+    
+    // Helper pour obtenir le cache actif selon le thème
+    QCache<QString, QPixmap>& getActiveCache() { return m_darkTheme ? m_darkCache : m_lightCache; }
 
     // ---- Vue ----
     int m_zoom = 13;

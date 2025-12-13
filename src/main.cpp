@@ -54,7 +54,7 @@ int main(int argc, char** argv){
     win.setWindowTitle("V2V ");
 
     MapView* map = new MapView(&win);
-    map->setTilesTemplate("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    // Le thème de carte est géré par MapView (touche B pour toggle sombre/clair)
     map->setCenterLonLat(7.7521, 48.5734, 16);
 
     win.setCentralWidget(map);

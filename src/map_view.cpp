@@ -24,7 +24,7 @@ static inline double deg2rad(double d){ return d * M_PI / 180.0; }
 static inline double rad2deg(double r){ return r * 180.0 / M_PI; }
 
 MapView::MapView(QWidget* parent)
-    : QWidget(parent), m_memCache(1024) {
+    : QWidget(parent), m_darkCache(1024), m_lightCache(1024) {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
     setAutoFillBackground(true);
@@ -34,6 +34,9 @@ MapView::MapView(QWidget* parent)
 
     // Définir le chemin du SVG (chargement paresseux lors du premier dessin)
     VehicleRenderer::setSvgPath("../../data/car-top-view-icon.svg");
+
+    // Initialiser le template de tuiles avec le thème sombre par défaut
+    m_tilesTemplate = m_darkTilesTemplate;
 
     connect(&m_net, &QNetworkAccessManager::finished, this, [this](QNetworkReply* rep){
         rep->deleteLater();
@@ -202,11 +205,11 @@ void MapView::paintEvent(QPaintEvent*){
                 double mpp = metersPerPixelAtLat(lat);
                 double radiusPixels = range / mpp;
                 
-                // Dessiner un cercle semi-transparent pour le rayon (cyan doux)
-                QPen rangePen(QColor(100, 200, 220, 80));  // Cyan clair, très transparent
+                // Dessiner un cercle semi-transparent pour le rayon (cyan doux, très léger)
+                QPen rangePen(QColor(100, 200, 220, 80));  // Cyan clair, très très transparent
                 rangePen.setWidth(1);
                 p.setPen(rangePen);
-                p.setBrush(QColor(100, 200, 220, 20));  // Remplissage très léger
+                p.setBrush(QColor(100, 200, 220, 5));  // Remplissage quasi invisible
                 p.drawEllipse(pt, radiusPixels, radiusPixels);
             }
         }
@@ -347,9 +350,9 @@ void MapView::paintEvent(QPaintEvent*){
             // Générer une couleur aléatoire basée sur l'ID du véhicule pour cohérence
             QRandomGenerator gen(v->getId());
             QColor vehicleColor(
-                gen.bounded(0, 150),  // R: 100-255
-                gen.bounded(0, 150),  // G: 100-255
-                gen.bounded(0, 150),  // B: 100-255
+                gen.bounded(120, 220),  // R: 100-255
+                gen.bounded(120, 220),  // G: 100-255
+                gen.bounded(120, 220),  // B: 100-255
                 255  // Opacité élevée (sur 255)
             );
             
@@ -440,6 +443,16 @@ void MapView::keyPressEvent(QKeyEvent* ev){
             update();
             break;
         }
+        case Qt::Key_B: {
+            // Toggle dark/light theme
+            m_darkTheme = !m_darkTheme;
+            m_tilesTemplate = m_darkTheme ? m_darkTilesTemplate : m_lightTilesTemplate;
+            // Pas besoin de vider le cache - chaque thème a son propre cache !
+            std::cout << "[MapView] Thème " 
+                      << (m_darkTheme ? "sombre" : "clair") << std::endl;
+            update();
+            break;
+        }
         default: QWidget::keyPressEvent(ev); break;
     }
 }
@@ -458,7 +471,7 @@ void MapView::requestTile(int z,int x,int y){
     if(m_tilesTemplate.isEmpty()) return;
     const QString url = buildUrl(z,x,y);
 
-    if(QPixmap* cached = m_memCache.object(url)){
+    if(QPixmap* cached = getActiveCache().object(url)){
         return;
     }
 
@@ -470,7 +483,7 @@ void MapView::requestTile(int z,int x,int y){
         if(QFileInfo::exists(path)){
             QPixmap* px = new QPixmap();
             if(px->load(path)){
-                m_memCache.insert(url, px);
+                getActiveCache().insert(url, px);
                 update();
             } else delete px;
         }
@@ -499,7 +512,7 @@ void MapView::requestTile(int z,int x,int y){
             QByteArray data = rep->readAll();
             QPixmap* px = new QPixmap();
             if(px->loadFromData(data)){
-                m_memCache.insert(url, px);
+                getActiveCache().insert(url, px);
                 update();
             } else delete px;
         }
@@ -563,7 +576,7 @@ void MapView::drawTiles(QPainter& p){
             if(ty < 0 || ty >= n) continue;
 
             const QString url = buildUrl(tileZoom, txWrap, ty);
-            QPixmap* cached = m_memCache.object(url);
+            QPixmap* cached = getActiveCache().object(url);
             
             // Afficher la tuile à la taille correcte selon le zoom actuel
             QRectF target(tx*T*scale - m_offsetX, ty*T*scale - m_offsetY, T*scale, T*scale);
