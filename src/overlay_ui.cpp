@@ -328,6 +328,7 @@ void ParametersPanel::setupUI() {
     
     // Sliders
     layout->addWidget(createSliderRow("", "Nombres de véhicules", m_vehicleSlider, m_vehicleValue, 1, 3000, 2000, ""));
+    layout->addWidget(createSliderRow("", "Vitesse des véhicules", m_speedSlider, m_speedValue, 1, 500, 50, " km/h"));
     layout->addWidget(createSliderRow("", "Grandes antennes", m_largeAntennaSlider, m_largeAntennaValue, 0, 50, 5, ""));
     layout->addWidget(createSliderRow("", "Petites antennes", m_smallAntennaSlider, m_smallAntennaValue, 0, 200, 20, ""));
     
@@ -338,12 +339,14 @@ void ParametersPanel::setupUI() {
     layout->addWidget(createToggleRow("Afficher les connexions", m_connectionsToggle, true));
     layout->addWidget(createToggleRow("Afficher les rayons", m_rangesToggle, true));
     layout->addWidget(createToggleRow("Connexions transitives", m_transitiveToggle, false));
+    layout->addWidget(createToggleRow("Afficher les routes", m_roadsToggle, false));
     
     // Connecter les signaux
     connect(m_vehicleSlider, &QSlider::valueChanged, this, &ParametersPanel::vehicleCountChanged);
     connect(m_vehicleSlider, &QSlider::sliderReleased, this, [this]() {
         emit vehicleCountReleased(m_vehicleSlider->value());
     });
+    connect(m_speedSlider, &QSlider::valueChanged, this, &ParametersPanel::vehicleSpeedChanged);
     connect(m_largeAntennaSlider, &QSlider::valueChanged, this, &ParametersPanel::largeAntennaCountChanged);
     connect(m_smallAntennaSlider, &QSlider::valueChanged, this, &ParametersPanel::smallAntennaCountChanged);
     // Émettre antennaConfigReleased au relâchement des sliders d'antennes pour déclencher K-means
@@ -357,6 +360,7 @@ void ParametersPanel::setupUI() {
     connect(m_connectionsToggle, &QPushButton::toggled, this, &ParametersPanel::showConnectionsChanged);
     connect(m_rangesToggle, &QPushButton::toggled, this, &ParametersPanel::showRangesChanged);
     connect(m_transitiveToggle, &QPushButton::toggled, this, &ParametersPanel::showTransitiveChanged);
+    connect(m_roadsToggle, &QPushButton::toggled, this, &ParametersPanel::showRoadsChanged);
     
     layout->addStretch();
 }
@@ -437,9 +441,19 @@ int ParametersPanel::getVehicleCount() const { return m_vehicleSlider->value(); 
 int ParametersPanel::getTransmissionRange() const { return m_rangeSlider->value(); }
 int ParametersPanel::getLargeAntennaCount() const { return m_largeAntennaSlider->value(); }
 int ParametersPanel::getSmallAntennaCount() const { return m_smallAntennaSlider->value(); }
+int ParametersPanel::getVehicleSpeed() const { return m_speedSlider->value(); }
 bool ParametersPanel::showConnections() const { return m_connectionsToggle->isChecked(); }
 bool ParametersPanel::showRanges() const { return m_rangesToggle->isChecked(); }
 bool ParametersPanel::showTransitive() const { return m_transitiveToggle->isChecked(); }
+bool ParametersPanel::showRoads() const { return m_roadsToggle->isChecked(); }
+
+void ParametersPanel::setVehicleCount(int count) {
+    // Bloquer les signaux pour éviter de déclencher une boucle
+    m_vehicleSlider->blockSignals(true);
+    m_vehicleSlider->setValue(count);
+    m_vehicleValue->setText(QString::number(count));
+    m_vehicleSlider->blockSignals(false);
+}
 
 // ============================================================================
 // StatsPanel Implementation
@@ -672,6 +686,27 @@ void UIOverlay::setupUI() {
     updateToggleButtonIcon(true);  // Menu ouvert par défaut
     m_menuToggleBtn->setCursor(Qt::PointingHandCursor);
     
+    // Bouton supprimer véhicule (caché par défaut)
+    m_deleteVehicleBtn = new QPushButton("Supprimer", this);
+    m_deleteVehicleBtn->setFixedSize(120, 40);
+    m_deleteVehicleBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background-color: rgba(220, 38, 38, 0.95);
+        }
+    )");
+    m_deleteVehicleBtn->setCursor(Qt::PointingHandCursor);
+    m_deleteVehicleBtn->hide();
+    
+    connect(m_deleteVehicleBtn, &QPushButton::clicked, this, &UIOverlay::deleteTrackedVehicle);
+    
     connect(m_menuToggleBtn, &QPushButton::clicked, m_bottomMenu, &BottomMenu::toggle);
     connect(m_bottomMenu, &BottomMenu::expansionChanged, this, [this](bool expanded) {
         updateToggleButtonIcon(expanded);
@@ -681,6 +716,14 @@ void UIOverlay::setupUI() {
     connect(m_bottomMenu->animation(), &QPropertyAnimation::valueChanged, this, [this]() {
         repositionElements();
     });
+}
+
+void UIOverlay::showDeleteVehicleButton(bool show) {
+    m_deleteVehicleBtn->setVisible(show);
+    if (show) {
+        // Positionner au centre en haut
+        m_deleteVehicleBtn->move((width() - m_deleteVehicleBtn->width()) / 2, 70);
+    }
 }
 
 void UIOverlay::resizeEvent(QResizeEvent*) {

@@ -1,6 +1,7 @@
 #include "map_view.h"
 #include "vehicle_renderer.h"
 #include "overlay_ui.h"
+#include "vehicule.h"
 #include <QPainter>
 #include <QWheelEvent>
 #include <QMouseEvent>
@@ -93,6 +94,10 @@ MapView::MapView(QWidget* parent)
         }
         update();
     });
+    connect(params, &ParametersPanel::showRoadsChanged, this, [this](bool show) {
+        m_showRoads = show;
+        update();
+    });
     connect(params, &ParametersPanel::transmissionRangeChanged, this, [this](int range) {
         if (m_simulator) {
             // Mettre à jour le rayon de transmission de tous les véhicules
@@ -100,6 +105,17 @@ MapView::MapView(QWidget* parent)
                 v->setTransmissionRange(range);
             }
             update();
+        }
+    });
+    
+    // Connexion pour la vitesse des véhicules
+    connect(params, &ParametersPanel::vehicleSpeedChanged, this, [this](int speedKmh) {
+        if (m_simulator) {
+            // Convertir km/h en m/s (1 km/h = 1/3.6 m/s)
+            double speedMs = speedKmh / 3.6;
+            for (auto* v : m_simulator->vehicles()) {
+                v->setSpeed(speedMs);
+            }
         }
     });
     
@@ -136,6 +152,23 @@ void MapView::setSimulator(Simulator* sim) {
             });
             connect(sim, &Simulator::simulationStopped, this, [this]() {
                 m_uiOverlay->topBar()->setRunning(false);
+            });
+            
+            // Mettre à jour le slider quand le nombre de véhicules change
+            connect(sim, &Simulator::vehicleCountChanged, this, [this](int count) {
+                auto* params = m_uiOverlay->bottomMenu()->parametersPanel();
+                params->setVehicleCount(count);
+            });
+            
+            // Connecter le bouton supprimer véhicule
+            connect(m_uiOverlay, &UIOverlay::deleteTrackedVehicle, this, [this]() {
+                if (m_trackedVehicle && m_simulator) {
+                    Vehicule* toDelete = m_trackedVehicle;
+                    m_trackedVehicle = nullptr;
+                    m_followingVehicle = false;
+                    m_uiOverlay->showDeleteVehicleButton(false);
+                    m_simulator->removeVehicle(toDelete);
+                }
             });
         }
     }
@@ -178,6 +211,27 @@ void MapView::setCenterLonLat(double lonDeg, double latDeg, int zoom){
 }
 
 void MapView::paintEvent(QPaintEvent*){
+    // Vérifier que le véhicule suivi existe toujours
+    if (m_followingVehicle && m_trackedVehicle && m_simulator) {
+        const auto& vehicles = m_simulator->vehicles();
+        bool found = std::find(vehicles.begin(), vehicles.end(), m_trackedVehicle) != vehicles.end();
+        if (!found) {
+            // Le véhicule a été supprimé
+            m_trackedVehicle = nullptr;
+            m_followingVehicle = false;
+            if (m_uiOverlay) m_uiOverlay->showDeleteVehicleButton(false);
+        }
+    }
+    
+    // Update camera to follow tracked vehicle
+    if (m_followingVehicle && m_trackedVehicle) {
+        auto [vLat, vLon] = m_trackedVehicle->getPosition();  // getPosition retourne {lat, lon}
+        double px, py;
+        lonlatToPixel(vLon, vLat, m_zoom, px, py);
+        m_offsetX = px - width() / 2.0;
+        m_offsetY = py - height() / 2.0;
+    }
+    
     QPainter p(this);
     p.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
@@ -196,6 +250,55 @@ void MapView::paintEvent(QPaintEvent*){
             p.drawLine(0 - (int)m_offsetX, y - (int)m_offsetY, 4096 - (int)m_offsetX, y - (int)m_offsetY);
     }
 
+    // Dessiner les routes du graphe si activé
+    if (m_showRoads && m_simulator) {
+        // Pré-calculer les routes valides une seule fois
+        if (!m_roadsPrecomputed) {
+            const auto& graph = m_simulator->getGraph();
+            m_validRoads.clear();
+            m_validRoads.reserve(boost::num_edges(graph) / 2);  // Estimation
+            
+            for (auto ep = boost::edges(graph); ep.first != ep.second; ++ep.first) {
+                Edge e = *ep.first;
+                if (!Vehicule::isValidRoad(graph[e].type)) continue;
+                
+                Vertex s = boost::source(e, graph);
+                Vertex t = boost::target(e, graph);
+                
+                RoadSegment seg;
+                seg.lon1 = graph[s].lon;
+                seg.lat1 = graph[s].lat;
+                seg.lon2 = graph[t].lon;
+                seg.lat2 = graph[t].lat;
+                m_validRoads.push_back(seg);
+            }
+            m_roadsPrecomputed = true;
+        }
+        
+        // Calculer les limites visibles
+        double minLon, minLat, maxLon, maxLat;
+        screenToLonLat(QPoint(0, height()), minLon, minLat);
+        screenToLonLat(QPoint(width(), 0), maxLon, maxLat);
+        
+        // Style des routes
+        p.setPen(QPen(QColor(138, 43, 226, 100), 2));
+        p.setRenderHint(QPainter::Antialiasing, false);  // Désactiver AA pour performance
+        
+        // Dessiner les routes visibles
+        for (const auto& seg : m_validRoads) {
+            // Test de visibilité rapide
+            if ((seg.lon1 < minLon && seg.lon2 < minLon) || 
+                (seg.lon1 > maxLon && seg.lon2 > maxLon) ||
+                (seg.lat1 < minLat && seg.lat2 < minLat) || 
+                (seg.lat1 > maxLat && seg.lat2 > maxLat)) {
+                continue;
+            }
+            
+            QPointF p1 = lonLatToScreen(seg.lon1, seg.lat1);
+            QPointF p2 = lonLatToScreen(seg.lon2, seg.lat2);
+            p.drawLine(p1, p2);
+        }
+    }
 
     // ----------- DEBUG --------
     // draw edges (ways) on map to see which are detected
@@ -531,28 +634,82 @@ void MapView::wheelEvent(QWheelEvent* ev){
 void MapView::mousePressEvent(QMouseEvent* ev){
     if(ev->button()==Qt::LeftButton){
         m_dragging = true;
+        m_didDrag = false;
         m_lastPos = ev->pos();
+        m_pressPos = ev->pos();
     }
 }
 
 void MapView::mouseMoveEvent(QMouseEvent* ev){
     if(m_dragging){
         QPoint d = ev->pos() - m_lastPos;
-        m_offsetX -= d.x();
-        m_offsetY -= d.y();
+        
+        // Vérifier si on a bougé significativement (> 5 pixels)
+        if (!m_didDrag) {
+            int totalMove = (ev->pos() - m_pressPos).manhattanLength();
+            if (totalMove > 5) {
+                m_didDrag = true;
+                // Stop following vehicle when user drags the map
+                if (m_followingVehicle) {
+                    m_followingVehicle = false;
+                    m_trackedVehicle = nullptr;
+                    if (m_uiOverlay) m_uiOverlay->showDeleteVehicleButton(false);
+                }
+            }
+        }
+        
+        if (m_didDrag) {
+            m_offsetX -= d.x();
+            m_offsetY -= d.y();
+            update();
+        }
         m_lastPos = ev->pos();
-        update();
     }
     double lon, lat;
     screenToLonLat(ev->pos(), lon, lat);
 
-    // ✅ fix du message (évite "QString::arg: Argument missing")
+    // fix du message (évite "QString::arg: Argument missing")
     emit cursorInfoChanged(QString("Zoom %1  |  Lon %2  Lat %3")
         .arg(m_zoom).arg(lon,0,'f',5).arg(lat,0,'f',5));
 }
 
 void MapView::mouseReleaseEvent(QMouseEvent* ev){
-    if(ev->button()==Qt::LeftButton) m_dragging = false;
+    if(ev->button()==Qt::LeftButton) {
+        if (!m_didDrag) {
+            // C'était un clic simple, pas un drag
+            double clickLon, clickLat;
+            screenToLonLat(m_pressPos, clickLon, clickLat);
+            
+            // Seuil adaptatif selon le zoom
+            double metersPerPx = metersPerPixelAtLat(clickLat);
+            double clickRadiusPx = 20.0;
+            double clickRadiusMeters = clickRadiusPx * metersPerPx;
+            double CLICK_THRESHOLD = clickRadiusMeters / 111000.0;
+            
+            Vehicule* closestVehicle = nullptr;
+            double minDist = CLICK_THRESHOLD;
+            
+            for (auto* v : m_simulator->vehicles()) {
+                auto [vLat, vLon] = v->getPosition();
+                double dist = std::hypot(vLon - clickLon, vLat - clickLat);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestVehicle = v;
+                }
+            }
+            
+            if (closestVehicle) {
+                // Clic sur un véhicule existant -> le suivre
+                m_trackedVehicle = closestVehicle;
+                m_followingVehicle = true;
+                if (m_uiOverlay) m_uiOverlay->showDeleteVehicleButton(true);
+            } else {
+                // Clic sur zone vide -> créer un véhicule sans le suivre
+                m_simulator->createVehicleNear(clickLon, clickLat);
+            }
+        }
+        m_dragging = false;
+    }
 }
 
 void MapView::keyPressEvent(QKeyEvent* ev){

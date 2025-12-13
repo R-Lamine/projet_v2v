@@ -78,6 +78,7 @@ public:
     
     //setter
     void setTransmissionRange(double range) { transmissionRange = range; }
+    void setSpeed(double s) { speed = s; }
 
     void addNeighbor(Vehicule* v) { neighbors.push_back(v); }
     void clearNeighbors() { neighbors.clear(); }

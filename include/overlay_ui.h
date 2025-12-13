@@ -61,9 +61,13 @@ public:
     int getTransmissionRange() const;
     int getLargeAntennaCount() const;
     int getSmallAntennaCount() const;
+    int getVehicleSpeed() const;
     bool showConnections() const;
     bool showRanges() const;
     bool showTransitive() const;
+    bool showRoads() const;
+    
+    void setVehicleCount(int count);  // Met à jour le slider sans émettre de signal
 
 signals:
     void vehicleCountChanged(int count);
@@ -72,9 +76,11 @@ signals:
     void largeAntennaCountChanged(int count);
     void smallAntennaCountChanged(int count);
     void antennaConfigReleased(int numLarge, int numSmall);  // K-means auto au relâchement
+    void vehicleSpeedChanged(int speed);  // Vitesse des véhicules (1-100 km/h)
     void showConnectionsChanged(bool show);
     void showRangesChanged(bool show);
     void showTransitiveChanged(bool show);
+    void showRoadsChanged(bool show);
 
 private:
     QSlider* m_vehicleSlider;
@@ -85,9 +91,12 @@ private:
     QLabel* m_smallAntennaValue;
     QSlider* m_rangeSlider;
     QLabel* m_rangeValue;
+    QSlider* m_speedSlider;
+    QLabel* m_speedValue;
     QPushButton* m_connectionsToggle;
     QPushButton* m_rangesToggle;
     QPushButton* m_transitiveToggle;
+    QPushButton* m_roadsToggle;
     
     void setupUI();
     QWidget* createSliderRow(const QString& icon, const QString& title, 
@@ -185,6 +194,12 @@ public:
     void setSimulator(Simulator* sim) { m_simulator = sim; }
     void updateStats();
     void updateMapInfo(int zoom, double lon, double lat);
+    
+    // Gestion du bouton supprimer véhicule
+    void showDeleteVehicleButton(bool show);
+    
+signals:
+    void deleteTrackedVehicle();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -194,6 +209,7 @@ private:
     BottomMenu* m_bottomMenu;
     ZoomControls* m_zoomControls;
     QPushButton* m_menuToggleBtn;
+    QPushButton* m_deleteVehicleBtn;  // Bouton pour supprimer le véhicule suivi
     Simulator* m_simulator = nullptr;
     
     void setupUI();

@@ -34,6 +34,7 @@ public:
     bool removeVehicle(Vehicule* v);
     void clearVehicles();
     void setVehicleCount(int count); // Dynamically add or remove vehicles to match count
+    Vehicule* createVehicleNear(double lon, double lat); // Create a vehicle near a position
     
     // Antenna management
     void placeAntennas(int numLarge, int numSmall); // Run K-means to place antennas
@@ -58,6 +59,7 @@ signals:
     void simulationPaused();
     void simulationResumed();
     void simulationStopped();
+    void vehicleCountChanged(int count);  // Émis quand le nombre de véhicules change
 
     // Emitted after each tick (after vehicles updated) to repaint
     void ticked(double deltaTimeSeconds);

@@ -8,9 +8,11 @@
 #include <QNetworkReply>
 #include <QPointer>
 #include <QTimer>
+#include <vector>
 
 class Simulator;
 class UIOverlay;
+class Vehicule;
 
 struct TileKey {
     int z;
@@ -84,6 +86,14 @@ private:
     bool m_showTransitiveConnections = false;
     bool m_drawDirectConnections = true;
     bool m_showRanges = true;
+    bool m_showRoads = false;
+    
+    // ---- Cache pour les routes (optimisation) ----
+    struct RoadSegment {
+        double lon1, lat1, lon2, lat2;
+    };
+    std::vector<RoadSegment> m_validRoads;  // Pré-calculé une fois
+    bool m_roadsPrecomputed = false;
 
     // ---- Toggle low quality tiles mode ----
     bool m_lowQualityMode = true;
@@ -108,7 +118,13 @@ private:
     double m_offsetX = 0.0; // monde->écran (pixels)
     double m_offsetY = 0.0;
     bool m_dragging = false;
+    bool m_didDrag = false;  // True si on a bougé pendant le drag
     QPoint m_lastPos;
+    QPoint m_pressPos;  // Position initiale du clic
+    
+    // ---- Suivi de véhicule ----
+    Vehicule* m_trackedVehicle = nullptr;  // Véhicule suivi par la caméra
+    bool m_followingVehicle = false;       // True si on suit un véhicule
 
     // ---- Réseau (option) ----
     QString m_userAgent = "V2V-Simulator/1.0 (contact: student@example.edu)";

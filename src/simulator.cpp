@@ -3,6 +3,8 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QDebug>
+#include <limits>
+#include <algorithm>
 
 Simulator::Simulator(RoadGraph& graph, MapView* mapView, QObject* parent)
     :graph(graph), m_mapView(mapView), QObject(parent)
@@ -124,7 +126,67 @@ void Simulator::onTick() {
 }
 
 void Simulator::addVehicle(Vehicule* v) {
-    if(v) m_vehicles.push_back(v);
+    if(v) {
+        m_vehicles.push_back(v);
+        emit vehicleCountChanged(m_vehicles.size());
+    }
+}
+
+bool Simulator::removeVehicle(Vehicule* v) {
+    if (!v) return false;
+    
+    auto it = std::find(m_vehicles.begin(), m_vehicles.end(), v);
+    if (it != m_vehicles.end()) {
+        m_vehicles.erase(it);
+        delete v;
+        m_interferenceGraph.buildGraph(m_vehicles);
+        emit vehicleCountChanged(m_vehicles.size());
+        return true;
+    }
+    return false;
+}
+
+Vehicule* Simulator::createVehicleNear(double lon, double lat) {
+    if (m_vertices.empty()) return nullptr;
+    
+    // Trouver le vertex le plus proche de la position cliquée
+    Vertex nearestVertex = m_vertices[0];
+    double minDist = std::numeric_limits<double>::max();
+    
+    // Parcourir tous les vertices pour trouver le plus proche
+    for (const Vertex& v : m_vertices) {
+        double vLat = graph[v].lat;
+        double vLon = graph[v].lon;
+        double dist = (vLon - lon) * (vLon - lon) + (vLat - lat) * (vLat - lat);  // Distance² (plus rapide)
+        if (dist < minDist) {
+            // Vérifier la validité seulement pour les candidats proches
+            if (Vehicule::isValidVertex(v, graph) && Vehicule::hasValidOutgoingEdge(v, graph)) {
+                minDist = dist;
+                nearestVertex = v;
+            }
+        }
+    }
+    
+    // Choisir un goal aléatoire
+    Vertex goal = m_vertices[rand() % m_vertices.size()];
+    int attempts = 0;
+    while ((!Vehicule::isValidVertex(goal, graph) || !Vehicule::hasValidOutgoingEdge(goal, graph)) && attempts < 100) {
+        goal = m_vertices[rand() % m_vertices.size()];
+        attempts++;
+    }
+    
+    // Créer le véhicule
+    double speed = 14;          // 50 km/h en m/s
+    double range = 500.0;
+    double collisionDist = 5.0;
+    
+    Vehicule* car = new Vehicule(m_nextVehicleId++, graph, nearestVertex, goal,
+                                 speed, range, collisionDist);
+    m_vehicles.push_back(car);
+    // Pas de buildGraph ici - sera fait au prochain tick
+    emit vehicleCountChanged(m_vehicles.size());
+    
+    return car;
 }
 
 void Simulator::setVehicleCount(int count) {
@@ -177,6 +239,9 @@ void Simulator::setVehicleCount(int count) {
     
     // Reconstruire le graphe d'interférence
     m_interferenceGraph.buildGraph(m_vehicles);
+    
+    // Notifier le changement de nombre de véhicules
+    emit vehicleCountChanged(m_vehicles.size());
 }
 
 void Simulator::placeAntennas(int numLarge, int numSmall) {
