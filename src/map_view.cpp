@@ -85,9 +85,9 @@ void MapView::paintEvent(QPaintEvent*){
 
     // ----------- DEBUG --------
     // draw edges (ways) on map to see which are detected
-    QPen pen(Qt::red, 10);
-    p.setPen(pen);
-    p.drawPoint(width()/2, height()/2);
+    // QPen pen(Qt::red, 10);
+    // p.setPen(pen);
+    // p.drawPoint(width()/2, height()/2);
 
     const auto& graph = m_simulator->getGraph();
     int drawn = 0;
