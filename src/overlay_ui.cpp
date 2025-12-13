@@ -691,7 +691,7 @@ void UIOverlay::setupUI() {
     m_deleteVehicleBtn->setFixedSize(120, 40);
     m_deleteVehicleBtn->setStyleSheet(R"(
         QPushButton {
-            background-color: rgba(239, 68, 68, 0.9);
+            background-color: rgba(99, 102, 241, 0.9);
             color: white;
             border: none;
             border-radius: 8px;
@@ -699,7 +699,7 @@ void UIOverlay::setupUI() {
             font-size: 14px;
         }
         QPushButton:hover {
-            background-color: rgba(220, 38, 38, 0.95);
+            background-color: rgba(129, 140, 248, 0.95);
         }
     )");
     m_deleteVehicleBtn->setCursor(Qt::PointingHandCursor);
