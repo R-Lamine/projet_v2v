@@ -186,6 +186,28 @@ void TopBar::setupUI() {
     m_infoLabel->setText("Zoom 16 | Lon 7.75210 | Lat 48.57340");
     layout->addWidget(m_infoLabel);
     
+    // Bouton toggle thème (dark/light)
+    m_themeBtn = new QPushButton("Dark", this);
+    m_themeBtn->setStyleSheet(BUTTON_STYLE);
+    m_themeBtn->setCursor(Qt::PointingHandCursor);
+    connect(m_themeBtn, &QPushButton::clicked, this, [this]() {
+        m_darkTheme = !m_darkTheme;
+        m_themeBtn->setText(m_darkTheme ? "Dark" : "Light");
+        emit themeToggled(m_darkTheme);
+    });
+    layout->addWidget(m_themeBtn);
+    
+    // Bouton toggle qualité (HQ/LQ)
+    m_qualityBtn = new QPushButton("Fast", this);
+    m_qualityBtn->setStyleSheet(BUTTON_STYLE);
+    m_qualityBtn->setCursor(Qt::PointingHandCursor);
+    connect(m_qualityBtn, &QPushButton::clicked, this, [this]() {
+        m_highQuality = !m_highQuality;
+        m_qualityBtn->setText(m_highQuality ? "HQ" : "Fast");
+        emit qualityToggled(m_highQuality);
+    });
+    layout->addWidget(m_qualityBtn);
+    
     // Bouton Pause/Continuer
     m_startPauseBtn = new QPushButton(this);
     m_startPauseBtn->setStyleSheet(PRIMARY_BUTTON_STYLE);
@@ -266,6 +288,16 @@ void TopBar::updateInfo(int zoom, double lon, double lat) {
         .arg(lat, 0, 'f', 5));
 }
 
+void TopBar::setDarkTheme(bool dark) {
+    m_darkTheme = dark;
+    m_themeBtn->setText(m_darkTheme ? "🌙 Dark" : "☀️ Light");
+}
+
+void TopBar::setHighQuality(bool hq) {
+    m_highQuality = hq;
+    m_qualityBtn->setText(m_highQuality ? "✨ HQ" : "⚡ Fast");
+}
+
 // ============================================================================
 // ParametersPanel Implementation
 // ============================================================================
@@ -278,10 +310,10 @@ void ParametersPanel::setupUI() {
     layout->setContentsMargins(24, 20, 24, 20);
     layout->setSpacing(14);
     
-    // Titre avec icône
+    // Titre avec icône (aligné à gauche comme StatsPanel)
     auto* titleLayout = new QHBoxLayout();
-    titleLayout->addStretch();
     QLabel* iconLabel = new QLabel(this);
+    iconLabel->setStyleSheet("background: transparent; border: none;");
     QPixmap gearPix(findResource("Gear.png"));
     if (!gearPix.isNull()) {
         iconLabel->setPixmap(gearPix.scaled(20, 20, Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -289,24 +321,38 @@ void ParametersPanel::setupUI() {
     titleLayout->addWidget(iconLabel);
     
     QLabel* titleLabel = new QLabel("Paramètres de la simulation", this);
-    titleLabel->setStyleSheet("color: white; font-size: 14px; font-weight: 600;");
+    titleLabel->setStyleSheet("color: white; font-size: 14px; font-weight: 600; background: transparent; border: none;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
     layout->addLayout(titleLayout);
     
     // Sliders
-    layout->addWidget(createSliderRow("", "Nombres de véhicules", m_vehicleSlider, m_vehicleValue, 1, 500, 50, ""));
-    layout->addWidget(createSliderRow("", "Vitesse de simulation", m_speedSlider, m_speedValue, 1, 10, 1, "x"));
-    layout->addWidget(createSliderRow("", "Rayon de transmission", m_rangeSlider, m_rangeValue, 10, 500, 50, "m"));
+    layout->addWidget(createSliderRow("", "Nombres de véhicules", m_vehicleSlider, m_vehicleValue, 1, 3000, 2000, ""));
+    layout->addWidget(createSliderRow("", "Grandes antennes", m_largeAntennaSlider, m_largeAntennaValue, 0, 50, 5, ""));
+    layout->addWidget(createSliderRow("", "Petites antennes", m_smallAntennaSlider, m_smallAntennaValue, 0, 200, 20, ""));
+    
+    // Rayon de transmission
+    layout->addWidget(createSliderRow("", "Rayon de transmission", m_rangeSlider, m_rangeValue, 10, 1000, 500, "m"));
     
     // Toggles
-    layout->addWidget(createToggleRow("Afficher les connexions", m_connectionsToggle, false));
-    layout->addWidget(createToggleRow("Afficher les rayons", m_rangesToggle, false));
-    layout->addWidget(createToggleRow("Connexions transitives", m_transitiveToggle, true));
+    layout->addWidget(createToggleRow("Afficher les connexions", m_connectionsToggle, true));
+    layout->addWidget(createToggleRow("Afficher les rayons", m_rangesToggle, true));
+    layout->addWidget(createToggleRow("Connexions transitives", m_transitiveToggle, false));
     
     // Connecter les signaux
     connect(m_vehicleSlider, &QSlider::valueChanged, this, &ParametersPanel::vehicleCountChanged);
-    connect(m_speedSlider, &QSlider::valueChanged, [this](int val) { emit simulationSpeedChanged(val); });
+    connect(m_vehicleSlider, &QSlider::sliderReleased, this, [this]() {
+        emit vehicleCountReleased(m_vehicleSlider->value());
+    });
+    connect(m_largeAntennaSlider, &QSlider::valueChanged, this, &ParametersPanel::largeAntennaCountChanged);
+    connect(m_smallAntennaSlider, &QSlider::valueChanged, this, &ParametersPanel::smallAntennaCountChanged);
+    // Émettre antennaConfigReleased au relâchement des sliders d'antennes pour déclencher K-means
+    connect(m_largeAntennaSlider, &QSlider::sliderReleased, this, [this]() {
+        emit antennaConfigReleased(m_largeAntennaSlider->value(), m_smallAntennaSlider->value());
+    });
+    connect(m_smallAntennaSlider, &QSlider::sliderReleased, this, [this]() {
+        emit antennaConfigReleased(m_largeAntennaSlider->value(), m_smallAntennaSlider->value());
+    });
     connect(m_rangeSlider, &QSlider::valueChanged, this, &ParametersPanel::transmissionRangeChanged);
     connect(m_connectionsToggle, &QPushButton::toggled, this, &ParametersPanel::showConnectionsChanged);
     connect(m_rangesToggle, &QPushButton::toggled, this, &ParametersPanel::showRangesChanged);
@@ -319,13 +365,14 @@ QWidget* ParametersPanel::createSliderRow(const QString& icon, const QString& ti
                                           QSlider*& slider, QLabel*& valueLabel,
                                           int min, int max, int initial, const QString& suffix) {
     QWidget* row = new QWidget(this);
+    row->setStyleSheet("background: transparent; border: none;");
     row->setMinimumHeight(36);
     auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(8, 4, 8, 4);
     layout->setSpacing(16);
     
     QLabel* titleLabel = new QLabel(title, row);
-    titleLabel->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px;");
+    titleLabel->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; background: transparent; border: none;");
     titleLabel->setMinimumWidth(180);
     layout->addWidget(titleLabel);
     
@@ -360,13 +407,14 @@ QWidget* ParametersPanel::createSliderRow(const QString& icon, const QString& ti
 
 QWidget* ParametersPanel::createToggleRow(const QString& title, QPushButton*& toggle, bool initial) {
     QWidget* row = new QWidget(this);
+    row->setStyleSheet("background: transparent; border: none;");
     row->setMinimumHeight(36);
     auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(8, 4, 8, 4);
     layout->setSpacing(16);
     
     QLabel* titleLabel = new QLabel(title, row);
-    titleLabel->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px;");
+    titleLabel->setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px; background: transparent; border: none;");
     titleLabel->setMinimumWidth(180);
     layout->addWidget(titleLabel);
     layout->addStretch();
@@ -387,7 +435,8 @@ QWidget* ParametersPanel::createToggleRow(const QString& title, QPushButton*& to
 
 int ParametersPanel::getVehicleCount() const { return m_vehicleSlider->value(); }
 int ParametersPanel::getTransmissionRange() const { return m_rangeSlider->value(); }
-double ParametersPanel::getSimulationSpeed() const { return m_speedSlider->value(); }
+int ParametersPanel::getLargeAntennaCount() const { return m_largeAntennaSlider->value(); }
+int ParametersPanel::getSmallAntennaCount() const { return m_smallAntennaSlider->value(); }
 bool ParametersPanel::showConnections() const { return m_connectionsToggle->isChecked(); }
 bool ParametersPanel::showRanges() const { return m_rangesToggle->isChecked(); }
 bool ParametersPanel::showTransitive() const { return m_transitiveToggle->isChecked(); }
@@ -402,11 +451,12 @@ StatsPanel::StatsPanel(QWidget* parent) : QWidget(parent) {
 void StatsPanel::setupUI() {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(20, 16, 20, 16);
-    layout->setSpacing(12);
+    layout->setSpacing(10);
     
     // Titre avec icône
     auto* titleLayout = new QHBoxLayout();
     QLabel* iconLabel = new QLabel(this);
+    iconLabel->setStyleSheet("background: transparent; border: none;");
     QPixmap trendPix(findResource("TrendUp.png"));
     if (!trendPix.isNull()) {
         iconLabel->setPixmap(trendPix.scaled(20, 20, Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -414,33 +464,36 @@ void StatsPanel::setupUI() {
     titleLayout->addWidget(iconLabel);
     
     QLabel* titleLabel = new QLabel("Statistiques en temps réel", this);
-    titleLabel->setStyleSheet("color: white; font-size: 14px; font-weight: 600;");
+    titleLabel->setStyleSheet("color: white; font-size: 14px; font-weight: 600; background: transparent; border: none;");
     titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
     layout->addLayout(titleLayout);
     
     // Stats
-    layout->addWidget(createStatRow("Véhicules actif", m_activeVehicles));
+    layout->addWidget(createStatRow("Véhicules actifs", m_activeVehicles));
     layout->addWidget(createStatRow("Véhicules connectés", m_connectedVehicles, "#10b981"));
-    layout->addWidget(createStatRow("Connexions totals", m_totalConnections));
+    layout->addWidget(createStatRow("Connexions totales", m_totalConnections));
     layout->addWidget(createStatRow("Taux de connexion", m_connectionRate, "#f472b6"));
-    layout->addWidget(createStatRow("Mémoires utilisés", m_memoryUsed));
+    layout->addWidget(createStatRow("Comparaisons/tick", m_comparisons, "#fbbf24"));
+    layout->addWidget(createStatRow("Moy. voisins/véhicule", m_avgNeighbors, "#60a5fa"));
+    layout->addWidget(createStatRow("Temps de calcul", m_buildTime, "#a78bfa"));
     
     layout->addStretch();
 }
 
 QWidget* StatsPanel::createStatRow(const QString& title, QLabel*& valueLabel, const QString& color) {
     QWidget* row = new QWidget(this);
+    row->setStyleSheet("background: transparent; border: none;");
     auto* layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 0, 0, 0);
     
     QLabel* titleLabel = new QLabel(title, row);
-    titleLabel->setStyleSheet("color: rgba(255,255,255,0.6); font-size: 13px;");
+    titleLabel->setStyleSheet("color: rgba(255,255,255,0.6); font-size: 13px; background: transparent; border: none;");
     layout->addWidget(titleLabel);
     layout->addStretch();
     
     valueLabel = new QLabel("0", row);
-    valueLabel->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: 600;").arg(color));
+    valueLabel->setStyleSheet(QString("color: %1; font-size: 14px; font-weight: 600; background: transparent; border: none;").arg(color));
     valueLabel->setAlignment(Qt::AlignRight);
     layout->addWidget(valueLabel);
     
@@ -449,12 +502,23 @@ QWidget* StatsPanel::createStatRow(const QString& title, QLabel*& valueLabel, co
 
 void StatsPanel::updateStats(int activeVehicles, int connectedVehicles,
                              int totalConnections, double connectionRate,
-                             double memoryUsed) {
+                             int comparisons, double avgNeighbors, double buildTimeMs) {
     m_activeVehicles->setText(QString::number(activeVehicles));
     m_connectedVehicles->setText(QString::number(connectedVehicles));
     m_totalConnections->setText(QString::number(totalConnections));
     m_connectionRate->setText(QString::number(connectionRate, 'f', 0) + "%");
-    m_memoryUsed->setText(QString::number(memoryUsed, 'f', 0) + "Mb");
+    
+    // Formater le nombre de comparaisons (ex: 93.7K au lieu de 93785)
+    if (comparisons >= 1000000) {
+        m_comparisons->setText(QString::number(comparisons / 1000000.0, 'f', 1) + "M");
+    } else if (comparisons >= 1000) {
+        m_comparisons->setText(QString::number(comparisons / 1000.0, 'f', 1) + "K");
+    } else {
+        m_comparisons->setText(QString::number(comparisons));
+    }
+    
+    m_avgNeighbors->setText(QString::number(avgNeighbors, 'f', 1));
+    m_buildTime->setText(QString::number(buildTimeMs, 'f', 2) + " ms");
 }
 
 // ============================================================================
@@ -468,15 +532,19 @@ BottomMenu::BottomMenu(QWidget* parent) : QWidget(parent) {
 
 void BottomMenu::setupUI() {
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setContentsMargins(16, 16, 16, 0);  // Pas de marge en bas pour toucher le bord
     layout->setSpacing(16);
     
-    // Panel gauche - Paramètres (avec wrapper pour le fond arrondi)
+    // Panel gauche - Paramètres (avec wrapper pour le fond arrondi en haut seulement)
     QWidget* paramsWrapper = new QWidget(this);
     paramsWrapper->setStyleSheet(R"(
         background-color: rgba(17, 24, 39, 0.95);
         border: 1px solid rgba(75, 85, 99, 0.3);
-        border-radius: 16px;
+        border-bottom: none;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+        border-bottom-left-radius: 0px;
+        border-bottom-right-radius: 0px;
     )");
     auto* paramsLayout = new QVBoxLayout(paramsWrapper);
     paramsLayout->setContentsMargins(0, 0, 0, 0);
@@ -484,12 +552,16 @@ void BottomMenu::setupUI() {
     paramsLayout->addWidget(m_paramsPanel);
     layout->addWidget(paramsWrapper, 3);
     
-    // Panel droit - Stats (avec wrapper pour le fond arrondi)
+    // Panel droit - Stats (avec wrapper pour le fond arrondi en haut seulement)
     QWidget* statsWrapper = new QWidget(this);
     statsWrapper->setStyleSheet(R"(
         background-color: rgba(17, 24, 39, 0.95);
         border: 1px solid rgba(75, 85, 99, 0.3);
-        border-radius: 16px;
+        border-bottom: none;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+        border-bottom-left-radius: 0px;
+        border-bottom-right-radius: 0px;
     )");
     auto* statsLayout = new QVBoxLayout(statsWrapper);
     statsLayout->setContentsMargins(0, 0, 0, 0);
@@ -659,10 +731,13 @@ void UIOverlay::updateStats() {
     
     double rate = active > 0 ? (connected * 100.0 / active) : 0;
     
-    // Mémoire approximative
-    double memMb = (active * sizeof(Vehicule) + totalConnections * 8) / (1024.0 * 1024.0);
+    // Statistiques de performance
+    int comparisons = interfGraph.getLastComparisons();
+    double avgNeighbors = interfGraph.getLastAvgNeighbors();
+    double buildTimeMs = interfGraph.getLastBuildTimeMs();
     
-    m_bottomMenu->statsPanel()->updateStats(active, connected, totalConnections, rate, memMb);
+    m_bottomMenu->statsPanel()->updateStats(active, connected, totalConnections, rate,
+                                            comparisons, avgNeighbors, buildTimeMs);
 }
 
 void UIOverlay::updateMapInfo(int zoom, double lon, double lat) {

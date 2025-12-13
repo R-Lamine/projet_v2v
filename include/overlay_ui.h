@@ -22,9 +22,14 @@ public:
     void setRunning(bool running);
     bool isRunning() const { return m_running; }
     void updateInfo(int zoom, double lon, double lat);
+    
+    void setDarkTheme(bool dark);
+    void setHighQuality(bool hq);
 
 signals:
     void startPauseClicked();
+    void themeToggled(bool dark);
+    void qualityToggled(bool highQuality);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -34,7 +39,11 @@ private:
     QPushButton* m_statusBadge;
     QLabel* m_infoLabel;
     QPushButton* m_startPauseBtn;
+    QPushButton* m_themeBtn;
+    QPushButton* m_qualityBtn;
     bool m_running = false;
+    bool m_darkTheme = true;
+    bool m_highQuality = false;
     
     void setupUI();
     void updateButtonStates();
@@ -50,15 +59,19 @@ public:
     
     int getVehicleCount() const;
     int getTransmissionRange() const;
-    double getSimulationSpeed() const;
+    int getLargeAntennaCount() const;
+    int getSmallAntennaCount() const;
     bool showConnections() const;
     bool showRanges() const;
     bool showTransitive() const;
 
 signals:
     void vehicleCountChanged(int count);
+    void vehicleCountReleased(int count);  // Émis uniquement au relâchement du slider
     void transmissionRangeChanged(int range);
-    void simulationSpeedChanged(double speed);
+    void largeAntennaCountChanged(int count);
+    void smallAntennaCountChanged(int count);
+    void antennaConfigReleased(int numLarge, int numSmall);  // K-means auto au relâchement
     void showConnectionsChanged(bool show);
     void showRangesChanged(bool show);
     void showTransitiveChanged(bool show);
@@ -66,8 +79,10 @@ signals:
 private:
     QSlider* m_vehicleSlider;
     QLabel* m_vehicleValue;
-    QSlider* m_speedSlider;
-    QLabel* m_speedValue;
+    QSlider* m_largeAntennaSlider;
+    QLabel* m_largeAntennaValue;
+    QSlider* m_smallAntennaSlider;
+    QLabel* m_smallAntennaValue;
     QSlider* m_rangeSlider;
     QLabel* m_rangeValue;
     QPushButton* m_connectionsToggle;
@@ -90,15 +105,17 @@ public:
     explicit StatsPanel(QWidget* parent = nullptr);
     
     void updateStats(int activeVehicles, int connectedVehicles, 
-                     int totalConnections, double connectionRate, 
-                     double memoryUsed);
+                     int totalConnections, double connectionRate,
+                     int comparisons, double avgNeighbors, double buildTimeMs);
 
 private:
     QLabel* m_activeVehicles;
     QLabel* m_connectedVehicles;
     QLabel* m_totalConnections;
     QLabel* m_connectionRate;
-    QLabel* m_memoryUsed;
+    QLabel* m_comparisons;
+    QLabel* m_avgNeighbors;
+    QLabel* m_buildTime;
     
     void setupUI();
     QWidget* createStatRow(const QString& title, QLabel*& valueLabel, const QString& color = "white");
@@ -131,7 +148,7 @@ private:
     StatsPanel* m_statsPanel;
     QPropertyAnimation* m_animation;
     bool m_expanded = true;
-    int m_expandedHeight = 320;
+    int m_expandedHeight = 380;
     int m_collapsedHeight = 0;
     
     void setupUI();

@@ -51,11 +51,33 @@ MapView::MapView(QWidget* parent)
         }
     });
     
+    // Connecter le toggle thème (dark/light)
+    connect(m_uiOverlay->topBar(), &TopBar::themeToggled, this, [this](bool dark) {
+        m_darkTheme = dark;
+        m_tilesTemplate = m_darkTheme ? m_darkTilesTemplate : m_lightTilesTemplate;
+        std::cout << "[MapView] Thème " << (m_darkTheme ? "sombre" : "clair") << std::endl;
+        update();
+    });
+    
+    // Connecter le toggle qualité (HQ/Fast)
+    connect(m_uiOverlay->topBar(), &TopBar::qualityToggled, this, [this](bool hq) {
+        m_lowQualityMode = !hq;  // lowQuality = inverse de highQuality
+        std::cout << "[MapView] Mode low quality " << (m_lowQualityMode ? "activé" : "désactivé") << std::endl;
+        update();
+    });
+    
     connect(m_uiOverlay->zoomControls(), &ZoomControls::zoomIn, this, &MapView::zoomIn);
     connect(m_uiOverlay->zoomControls(), &ZoomControls::zoomOut, this, &MapView::zoomOut);
     
     // Connecter les toggles du panneau de paramètres
     auto* params = m_uiOverlay->bottomMenu()->parametersPanel();
+    // Utiliser sliderReleased pour éviter les freezes pendant le sliding
+    connect(params, &ParametersPanel::vehicleCountReleased, this, [this](int count) {
+        if (m_simulator) {
+            m_simulator->setVehicleCount(count);
+            update();
+        }
+    });
     connect(params, &ParametersPanel::showConnectionsChanged, this, [this](bool show) {
         m_drawDirectConnections = show;
         update();
@@ -77,6 +99,14 @@ MapView::MapView(QWidget* parent)
             for (auto* v : m_simulator->vehicles()) {
                 v->setTransmissionRange(range);
             }
+            update();
+        }
+    });
+    
+    // Connexion pour le placement automatique des antennes (K-means) au relâchement des sliders
+    connect(params, &ParametersPanel::antennaConfigReleased, this, [this](int numLarge, int numSmall) {
+        if (m_simulator) {
+            m_simulator->placeAntennas(numLarge, numSmall);
             update();
         }
     });
@@ -290,8 +320,8 @@ void MapView::paintEvent(QPaintEvent*){
             }
         }
 
-        // Dessiner les connexions uniquement si peu de véhicules visibles
-        if (drawDetails && visibleVehicles.size() < 200) {
+        // Dessiner les connexions si peu de véhicules visibles (augmenté à 500)
+        if (drawDetails && visibleVehicles.size() < 500) {
             // Dessiner d'abord les connexions transitives (lignes bleues pointillées) si activé
             if (m_showTransitiveConnections) {
                 QPen transitivePen(QColor(147, 112, 219, 120));  // Violet moyen, semi-transparent
@@ -412,30 +442,55 @@ void MapView::paintEvent(QPaintEvent*){
             }
         }
 
-        // Dessiner les véhicules comme des SVG orientés
-        // Taille proportionnelle au zoom (plus grand quand on zoom)
-        double baseSize = 16.0;  // Taille de base
-        double zoomFactor = std::pow(1.15, m_zoom - 16);  // Zoom 14 = taille normale
-        double vehicleSize = std::clamp(baseSize * zoomFactor, 6.0, 100.0);  // Min 6, Max 40 pixels
-        
-        for (auto* v : visibleVehicles) {
-            auto [lat, lon] = v->getPosition();
-            QPointF pt = lonLatToScreen(lon, lat);
+        // Dessiner les véhicules
+        // Si zoom <= 12, dessiner en simples points colorés pour performance
+        // Sinon, utiliser les SVG orientés
+        if (m_zoom <= 12) {
+            // Mode points simples pour zoom faible
+            double pointSize = std::max(2.0, 3.0 + (m_zoom - 8) * 0.5);  // 2-5 pixels selon zoom
             
-            // Obtenir la direction du véhicule (heading)
-            double heading = v->getHeading();
+            for (auto* v : visibleVehicles) {
+                auto [lat, lon] = v->getPosition();
+                QPointF pt = lonLatToScreen(lon, lat);
+                
+                // Couleur basée sur l'ID pour cohérence
+                QRandomGenerator gen(v->getId());
+                QColor vehicleColor(
+                    gen.bounded(120, 220),
+                    gen.bounded(120, 220),
+                    gen.bounded(120, 220),
+                    255
+                );
+                
+                p.setPen(Qt::NoPen);
+                p.setBrush(vehicleColor);
+                p.drawEllipse(pt, pointSize, pointSize);
+            }
+        } else {
+            // Mode SVG orientés pour zoom >= 13
+            double baseSize = 16.0;  // Taille de base
+            double zoomFactor = std::pow(1.15, m_zoom - 16);  // Zoom 14 = taille normale
+            double vehicleSize = std::clamp(baseSize * zoomFactor, 6.0, 100.0);  // Min 6, Max 40 pixels
             
-            // Générer une couleur aléatoire basée sur l'ID du véhicule pour cohérence
-            QRandomGenerator gen(v->getId());
-            QColor vehicleColor(
-                gen.bounded(120, 220),  // R: 100-255
-                gen.bounded(120, 220),  // G: 100-255
-                gen.bounded(120, 220),  // B: 100-255
-                255  // Opacité élevée (sur 255)
-            );
-            
-            // Utiliser le VehicleRenderer pour dessiner le véhicule
-            VehicleRenderer::drawVehicle(p, pt, heading, vehicleColor, vehicleSize);
+            for (auto* v : visibleVehicles) {
+                auto [lat, lon] = v->getPosition();
+                QPointF pt = lonLatToScreen(lon, lat);
+                
+                // Obtenir la direction du véhicule (heading)
+                double heading = v->getHeading();
+                
+                // Générer une couleur aléatoire basée sur l'ID du véhicule pour cohérence
+                QRandomGenerator gen(v->getId());
+                QColor vehicleColor(
+                    gen.bounded(120, 220),  // R: 100-255
+                    gen.bounded(120, 220),  // G: 100-255
+                    gen.bounded(120, 220),  // B: 100-255
+                    255  // Opacité élevée (sur 255)
+                );
+                
+                // Utiliser le VehicleRenderer pour dessiner le véhicule
+                VehicleRenderer::drawVehicle(p, pt, heading, vehicleColor, vehicleSize);
+            }
         }
     }
 
@@ -528,6 +583,10 @@ void MapView::keyPressEvent(QKeyEvent* ev){
             m_lowQualityMode = !m_lowQualityMode;
             std::cout << "[MapView] Mode low quality " 
                       << (m_lowQualityMode ? "activé" : "désactivé") << std::endl;
+            // Sync UI button
+            if (m_uiOverlay) {
+                m_uiOverlay->topBar()->setHighQuality(!m_lowQualityMode);
+            }
             update();
             break;
         }
@@ -538,6 +597,10 @@ void MapView::keyPressEvent(QKeyEvent* ev){
             // Pas besoin de vider le cache - chaque thème a son propre cache !
             std::cout << "[MapView] Thème " 
                       << (m_darkTheme ? "sombre" : "clair") << std::endl;
+            // Sync UI button
+            if (m_uiOverlay) {
+                m_uiOverlay->topBar()->setDarkTheme(m_darkTheme);
+            }
             update();
             break;
         }

@@ -33,6 +33,10 @@ public:
     void addVehicle(Vehicule* v); // takes ownership
     bool removeVehicle(Vehicule* v);
     void clearVehicles();
+    void setVehicleCount(int count); // Dynamically add or remove vehicles to match count
+    
+    // Antenna management
+    void placeAntennas(int numLarge, int numSmall); // Run K-means to place antennas
 
     // Simulation parameters
     void setSpeedMultiplier(double m);
@@ -82,6 +86,10 @@ private:
 
     std::vector<Vehicule*> m_vehicles;
     InterferenceGraph m_interferenceGraph;
+    
+    // Pour la création dynamique de véhicules
+    std::vector<Vertex> m_vertices;
+    int m_nextVehicleId = 0;
 };
 
 

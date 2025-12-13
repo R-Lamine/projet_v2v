@@ -13,6 +13,11 @@ Simulator::Simulator(RoadGraph& graph, MapView* mapView, QObject* parent)
     // setup the QTimer
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &Simulator::onTick);
+    
+    // Initialiser la liste des vertices pour la création dynamique
+    for (auto vp = boost::vertices(graph); vp.first != vp.second; ++vp.first) {
+        m_vertices.push_back(*vp.first);
+    }
 }
 
 Simulator::~Simulator() {
@@ -25,10 +30,19 @@ void Simulator::start(int tickIntervalMs) {
     m_paused = false;
     m_elapsed.restart();
     
-    // Initialiser la grille spatiale UNE SEULE FOIS au démarrage
-    // Ceci évite de refaire le K-means à chaque tick
+    // Initialiser le compteur d'ID pour les nouveaux véhicules
     if (!m_vehicles.empty()) {
-        m_interferenceGraph.initializeSpatialGrid(m_vehicles);
+        int maxId = 0;
+        for (const auto* vehicle : m_vehicles) {
+            maxId = std::max(maxId, vehicle->getId());
+        }
+        m_nextVehicleId = maxId + 1;
+    }
+    
+    // Initialiser la grille spatiale UNE SEULE FOIS au démarrage
+    // Utilise les valeurs par défaut de l'UI: 5 grandes antennes, 20 petites par grande
+    if (!m_vehicles.empty()) {
+        m_interferenceGraph.initializeSpatialGrid(m_vehicles, 5, 20);
     }
     
     m_timer->start(tickIntervalMs);
@@ -113,13 +127,70 @@ void Simulator::addVehicle(Vehicule* v) {
     if(v) m_vehicles.push_back(v);
 }
 
+void Simulator::setVehicleCount(int count) {
+    int currentCount = m_vehicles.size();
+    
+    if (count == currentCount) {
+        return; // Pas de changement
+    }
+    
+    if (count < currentCount) {
+        // Supprimer des véhicules
+        int toRemove = currentCount - count;
+        for (int i = 0; i < toRemove && !m_vehicles.empty(); ++i) {
+            Vehicule* v = m_vehicles.back();
+            m_vehicles.pop_back();
+            delete v;
+        }
+    } else {
+        // Ajouter des véhicules
+        int toAdd = count - currentCount;
+        
+        for (int i = 0; i < toAdd; ++i) {
+            if (m_vertices.empty()) break;
+            
+            // Choisir aléatoirement start et goal
+            Vertex start = m_vertices[rand() % m_vertices.size()];
+            Vertex goal = m_vertices[rand() % m_vertices.size()];
+            
+            // Vérifier que les vertices sont valides
+            while (!Vehicule::isValidVertex(start, graph) && 
+                   !Vehicule::hasValidOutgoingEdge(start, graph)) {
+                start = m_vertices[rand() % m_vertices.size()];
+            }
+            
+            while (!Vehicule::isValidVertex(goal, graph) && 
+                   !Vehicule::hasValidOutgoingEdge(goal, graph)) {
+                goal = m_vertices[rand() % m_vertices.size()];
+            }
+            
+            // Créer le nouveau véhicule avec les mêmes paramètres
+            double speed = 14;          // 50 km/h in m/s
+            double range = 500.0;        // transmission range
+            double collisionDist = 5.0;   // 5 meters
+            
+            Vehicule* car = new Vehicule(m_nextVehicleId++, graph, start, goal, 
+                                        speed, range, collisionDist);
+            addVehicle(car);
+        }
+    }
+    
+    // Reconstruire le graphe d'interférence
+    m_interferenceGraph.buildGraph(m_vehicles);
+}
 
-
-
-
-
-
-
-
-
-
+void Simulator::placeAntennas(int numLarge, int numSmall) {
+    if (m_vehicles.empty()) {
+        std::cout << "[Simulator] Pas de véhicules pour placer les antennes" << std::endl;
+        return;
+    }
+    
+    std::cout << "[Simulator] Placement des antennes: " << numLarge << " grandes, " 
+              << numSmall << " petites par grande" << std::endl;
+    
+    // Réinitialiser la grille avec les nouveaux paramètres
+    m_interferenceGraph.reinitializeSpatialGrid(m_vehicles, numLarge, numSmall);
+    
+    // Reconstruire le graphe d'interférence avec la nouvelle grille
+    m_interferenceGraph.buildGraph(m_vehicles);
+}

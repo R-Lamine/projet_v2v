@@ -88,11 +88,19 @@ public:
     /**
      * @brief Initialise la grille spatiale une fois pour toutes (K-means)
      * @param vehicles Liste des véhicules pour calculer la disposition optimale
+     * @param numMacro Nombre de grandes antennes (0 = auto)
+     * @param numMicro Nombre de petites antennes par grande (0 = auto)
      * 
      * Cette méthode doit être appelée UNE SEULE FOIS au début de la simulation.
      * Elle calcule les positions des antennes selon la densité des véhicules.
      */
-    void initializeSpatialGrid(const std::vector<Vehicule*>& vehicles);
+    void initializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro = 0, int numMicro = 0);
+    
+    /**
+     * @brief Force la réinitialisation de la grille spatiale (K-means)
+     * Utilisé quand l'utilisateur change le nombre d'antennes
+     */
+    void reinitializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro, int numMicro);
 
     /**
      * @brief Active ou désactive le calcul de la fermeture transitive
@@ -147,6 +155,17 @@ private:
 
     // Map pour accéder rapidement aux véhicules par ID
     std::unordered_map<int, Vehicule*> m_vehicleMap;
+    
+    // Statistiques de performance (mis à jour à chaque buildGraph)
+    mutable int m_lastComparisons = 0;
+    mutable double m_lastAvgNeighbors = 0.0;
+    mutable double m_lastBuildTimeMs = 0.0;
+    
+public:
+    // Getters pour les statistiques de performance
+    int getLastComparisons() const { return m_lastComparisons; }
+    double getLastAvgNeighbors() const { return m_lastAvgNeighbors; }
+    double getLastBuildTimeMs() const { return m_lastBuildTimeMs; }
 };
 
 #endif // INTERFERENCE_GRAPH_H

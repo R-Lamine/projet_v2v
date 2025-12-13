@@ -81,9 +81,9 @@ private:
     QPixmap m_base;
 
     // ---- Display toggles ----
-    bool m_showTransitiveConnections = true;
-    bool m_drawDirectConnections = false;
-    bool m_showRanges = false;
+    bool m_showTransitiveConnections = false;
+    bool m_drawDirectConnections = true;
+    bool m_showRanges = true;
 
     // ---- Toggle low quality tiles mode ----
     bool m_lowQualityMode = true;

@@ -5,7 +5,7 @@
 #include <chrono>
 
 InterferenceGraph::InterferenceGraph() 
-    : m_useSpatialGrid(true), m_gridInitialized(false), m_computeTransitive(true) {}
+    : m_useSpatialGrid(true), m_gridInitialized(false), m_computeTransitive(false) {}
 
 InterferenceGraph::~InterferenceGraph() {
     clear();
@@ -74,6 +74,9 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
     
+    // Stocker le temps de build
+    m_lastBuildTimeMs = duration.count() / 1000.0;
+    
     // Toujours afficher pour debug avec beaucoup de véhicules
     if (vehicles.size() > 1000) {
         std::cout << "[buildGraph] " << vehicles.size() << " véhicules, " 
@@ -84,6 +87,8 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
 
 void InterferenceGraph::buildGraphClassic(const std::vector<Vehicule*>& vehicles) {
     // Méthode O(n²): comparer toutes les paires
+    int comparisons = 0;
+    
     for (size_t i = 0; i < vehicles.size(); ++i) {
         Vehicule* v1 = vehicles[i];
         if (!v1) continue;
@@ -92,6 +97,7 @@ void InterferenceGraph::buildGraphClassic(const std::vector<Vehicule*>& vehicles
             Vehicule* v2 = vehicles[j];
             if (!v2) continue;
 
+            comparisons++;
             double distance = v1->calculateDist(*v2);
             bool v1CanReachV2 = distance <= v1->getTransmissionRange();
             bool v2CanReachV1 = distance <= v2->getTransmissionRange();
@@ -102,6 +108,10 @@ void InterferenceGraph::buildGraphClassic(const std::vector<Vehicule*>& vehicles
             }
         }
     }
+    
+    // Stocker les statistiques (méthode classique)
+    m_lastComparisons = comparisons;
+    m_lastAvgNeighbors = vehicles.size() > 0 ? static_cast<double>(vehicles.size() - 1) : 0.0;
 }
 
 void InterferenceGraph::buildGraphWithSpatialGrid(const std::vector<Vehicule*>& vehicles) {
@@ -138,6 +148,10 @@ void InterferenceGraph::buildGraphWithSpatialGrid(const std::vector<Vehicule*>& 
             }
         }
     }
+    
+    // Stocker les statistiques
+    m_lastComparisons = totalComparisons;
+    m_lastAvgNeighbors = vehicles.size() > 0 ? static_cast<double>(totalNearby) / vehicles.size() : 0.0;
     
     std::cout << "[buildGraphWithSpatialGrid] " << totalComparisons << " comparaisons de distance effectuées"
               << " (moyenne " << (totalNearby / vehicles.size()) << " voisins par véhicule)" << std::endl;
@@ -245,7 +259,7 @@ void InterferenceGraph::printStats() const {
     std::cout << "==========================================\n" << std::endl;
 }
 
-void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehicles) {
+void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro, int numMicro) {
     if (!m_useSpatialGrid || vehicles.size() < 20) {
         std::cout << "[InterferenceGraph] Pas assez de véhicules pour la grille spatiale" << std::endl;
         return;
@@ -259,16 +273,16 @@ void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehi
     std::cout << "[InterferenceGraph] Initialisation de la grille spatiale (K-means)..." << std::endl;
     auto startTime = std::chrono::high_resolution_clock::now();
     
-    int numMacro = 10;
-    int numMicro = 10;
-    
-    if (vehicles.size() > 500) {
-        numMacro = 20;
-        numMicro = 15;
+    // Si paramètres = 0, utiliser les valeurs automatiques
+    if (numMacro == 0) {
+        numMacro = 10;
+        if (vehicles.size() > 500) numMacro = 20;
+        if (vehicles.size() > 2000) numMacro = 30;
     }
-    if (vehicles.size() > 2000) {
-        numMacro = 30;
-        numMicro = 20;
+    if (numMicro == 0) {
+        numMicro = 10;
+        if (vehicles.size() > 500) numMicro = 15;
+        if (vehicles.size() > 2000) numMicro = 20;
     }
     
     m_spatialGrid.initialize(vehicles, numMacro, numMicro);
@@ -278,6 +292,28 @@ void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehi
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     
     std::cout << "[InterferenceGraph] Grille initialisée en " << duration.count() 
+              << " ms avec " << numMacro << " macro et " 
+              << numMicro << " micro antennes par macro" << std::endl;
+}
+
+void InterferenceGraph::reinitializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro, int numMicro) {
+    if (!m_useSpatialGrid || vehicles.size() < 20) {
+        std::cout << "[InterferenceGraph] Pas assez de véhicules pour la grille spatiale" << std::endl;
+        return;
+    }
+    
+    std::cout << "[InterferenceGraph] Réinitialisation de la grille spatiale (K-means)..." << std::endl;
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    // Force la réinitialisation
+    m_gridInitialized = false;
+    m_spatialGrid.initialize(vehicles, numMacro, numMicro);
+    m_gridInitialized = true;
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    
+    std::cout << "[InterferenceGraph] Grille réinitialisée en " << duration.count() 
               << " ms avec " << numMacro << " macro et " 
               << numMicro << " micro antennes par macro" << std::endl;
 }
