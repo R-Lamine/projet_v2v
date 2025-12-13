@@ -69,6 +69,13 @@ public:
     int getId() const { return id; }
     double getTransmissionRange() const { return transmissionRange; }
     const std::vector<Vehicule*>& getNeighbors() const { return neighbors;}
+    
+    /**
+     * @brief Retourne la direction (heading) du véhicule en degrés
+     * @return Angle en degrés (0° = vers le haut, 90° = vers la droite)
+     */
+    double getHeading() const { return currentHeading; }
+    
     //setter
     void setTransmissionRange(double range) { transmissionRange = range; }
 
@@ -97,6 +104,13 @@ private:
     double positionOnEdge = 0.0;     ///< Distance along the current edge
     bool destReached = false;
     double slowFactor = 0.8;        ///< Speed reduction factor when avoiding collision
+    double currentHeading = 0.0;    ///< Direction du véhicule en degrés (lissée)
+    double targetHeading = 0.0;     ///< Direction cible avant lissage
+    double headingSmoothingFactor = 0.15; ///< Facteur de lissage du heading (0-1, plus haut = plus rapide)
+    
+    // Position précédente pour calculer la direction du mouvement
+    double previousLat = 0.0;
+    double previousLon = 0.0;
 
     std::vector<Vehicule*> neighbors;
     std::vector<Vertex> route;      ///< Optional route (sequence of vertices)

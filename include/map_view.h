@@ -75,6 +75,9 @@ private:
     // ---- Toggle transitive connections ----
     bool m_showTransitiveConnections = true;
 
+    // ---- Toggle low quality tiles mode ----
+    bool m_lowQualityMode = true;
+
     // ---- Tuiles XYZ ----
     QString m_tilesTemplate;
     QNetworkAccessManager m_net;

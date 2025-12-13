@@ -1,5 +1,10 @@
 #include "vehicule.h"
 #include "graph_builder.h"
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 //Constructor
 Vehicule::Vehicule(int id, const RoadGraph& graph, Vertex start, Vertex goal, double speed, double range, double collisionDist)
@@ -108,8 +113,47 @@ void Vehicule::update(double deltaTime) {
         pickNextEdge();
     }
 
+    // Stocker la position actuelle avant le mouvement
+    auto [prevLat, prevLon] = getPosition();
+
     // advance along the current edge
     positionOnEdge += speed * deltaTime;
+
+    // Récupérer la nouvelle position après le mouvement
+    auto [currLat, currLon] = getPosition();
+    
+    // Calculer le heading basé sur le vecteur de mouvement réel
+    double dLat = currLat - prevLat;
+    double dLon = currLon - prevLon;
+    
+    // Vérifier qu'il y a eu un mouvement significatif
+    if (std::abs(dLat) > 1e-10 || std::abs(dLon) > 1e-10) {
+        // Calculer l'angle : 0° = north, 90° = east
+        double angleRad = std::atan2(dLon, dLat);
+        targetHeading = angleRad * 180.0 / M_PI;
+        
+        // Normaliser l'angle entre 0 et 360
+        if (targetHeading < 0) {
+            targetHeading += 360.0;
+        }
+        
+        // Lisser le heading pour éviter les tremblements
+        double angleDiff = targetHeading - currentHeading;
+        if (angleDiff > 180.0) {
+            angleDiff -= 360.0;
+        } else if (angleDiff < -180.0) {
+            angleDiff += 360.0;
+        }
+        
+        currentHeading += angleDiff * headingSmoothingFactor;
+        
+        // Normaliser currentHeading
+        if (currentHeading < 0) {
+            currentHeading += 360.0;
+        } else if (currentHeading >= 360.0) {
+            currentHeading -= 360.0;
+        }
+    }
 
     // check if we've reached or overshot the end of the edge
     while (positionOnEdge >= edgeLength) {

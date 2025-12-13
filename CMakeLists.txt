@@ -21,8 +21,8 @@ find_package(Boost REQUIRED)
 
 
 # Qt (for GUI visualization)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Core Network Svg)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network Svg)
 
 
 # PROJ (geographic projection library)
@@ -57,6 +57,7 @@ target_link_libraries(ConnectedVehicles
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Svg
 )
 
 message(STATUS "Qt version: ${Qt${QT_VERSION_MAJOR}_VERSION}")

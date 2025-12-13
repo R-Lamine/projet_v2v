@@ -1,4 +1,5 @@
 #include "map_view.h"
+#include "vehicle_renderer.h"
 #include <QPainter>
 #include <QWheelEvent>
 #include <QMouseEvent>
@@ -9,6 +10,7 @@
 #include <QNetworkRequest>
 #include <QDateTime>
 #include <QtMath>
+#include <QRandomGenerator>
 #include <algorithm>
 #include <cmath>
 
@@ -29,6 +31,9 @@ MapView::MapView(QWidget* parent)
     QPalette pal = palette();
     pal.setColor(QPalette::Window, QColor(30,30,30));
     setPalette(pal);
+
+    // Définir le chemin du SVG (chargement paresseux lors du premier dessin)
+    VehicleRenderer::setSvgPath("../../data/car-top-view-icon.svg");
 
     connect(&m_net, &QNetworkAccessManager::finished, this, [this](QNetworkReply* rep){
         rep->deleteLater();
@@ -197,11 +202,11 @@ void MapView::paintEvent(QPaintEvent*){
                 double mpp = metersPerPixelAtLat(lat);
                 double radiusPixels = range / mpp;
                 
-                // Dessiner un cercle semi-transparent pour le rayon
-                QPen rangePen(QColor(255, 255, 0, 150));
-                rangePen.setWidth(2);
+                // Dessiner un cercle semi-transparent pour le rayon (cyan doux)
+                QPen rangePen(QColor(100, 200, 220, 80));  // Cyan clair, très transparent
+                rangePen.setWidth(1);
                 p.setPen(rangePen);
-                p.setBrush(Qt::NoBrush);
+                p.setBrush(QColor(100, 200, 220, 20));  // Remplissage très léger
                 p.drawEllipse(pt, radiusPixels, radiusPixels);
             }
         }
@@ -210,8 +215,8 @@ void MapView::paintEvent(QPaintEvent*){
         if (drawDetails && visibleVehicles.size() < 200) {
             // Dessiner d'abord les connexions transitives (lignes bleues pointillées) si activé
             if (m_showTransitiveConnections) {
-                QPen transitivePen(QColor(0, 150, 255, 255));
-                transitivePen.setWidth(2);
+                QPen transitivePen(QColor(147, 112, 219, 120));  // Violet moyen, semi-transparent
+                transitivePen.setWidth(1);
                 transitivePen.setStyle(Qt::DashLine);
                 p.setPen(transitivePen);
 
@@ -244,8 +249,8 @@ void MapView::paintEvent(QPaintEvent*){
                 }
             }
 
-            // Dessiner ensuite les connexions directes (lignes vertes épaisses)
-            QPen connectionPen(QColor(0, 255, 0, 255));
+            // Dessiner ensuite les connexions directes (lignes orange douces)
+            QPen connectionPen(QColor(135, 206, 235, 150));  // Orange chaud, semi-transparent
             connectionPen.setWidth(2);
             p.setPen(connectionPen);
 
@@ -326,16 +331,30 @@ void MapView::paintEvent(QPaintEvent*){
             }
         }
 
-        // Dessiner les véhicules (points rouges) PAR-DESSUS - UNIQUEMENT les visibles
+        // Dessiner les véhicules comme des SVG orientés
+        // Taille proportionnelle au zoom (plus grand quand on zoom)
+        double baseSize = 16.0;  // Taille de base
+        double zoomFactor = std::pow(1.15, m_zoom - 16);  // Zoom 14 = taille normale
+        double vehicleSize = std::clamp(baseSize * zoomFactor, 6.0, 100.0);  // Min 6, Max 40 pixels
+        
         for (auto* v : visibleVehicles) {
-            
             auto [lat, lon] = v->getPosition();
             QPointF pt = lonLatToScreen(lon, lat);
             
-            // Cercle rouge pour le véhicule
-            p.setBrush(QBrush(Qt::red));
-            p.setPen(QPen(Qt::darkRed, 2));
-            p.drawEllipse(pt, 6, 6);  // Point rouge pour le véhicule
+            // Obtenir la direction du véhicule (heading)
+            double heading = v->getHeading();
+            
+            // Générer une couleur aléatoire basée sur l'ID du véhicule pour cohérence
+            QRandomGenerator gen(v->getId());
+            QColor vehicleColor(
+                gen.bounded(0, 150),  // R: 100-255
+                gen.bounded(0, 150),  // G: 100-255
+                gen.bounded(0, 150),  // B: 100-255
+                255  // Opacité élevée (sur 255)
+            );
+            
+            // Utiliser le VehicleRenderer pour dessiner le véhicule
+            VehicleRenderer::drawVehicle(p, pt, heading, vehicleColor, vehicleSize);
         }
     }
 
@@ -413,6 +432,14 @@ void MapView::keyPressEvent(QKeyEvent* ev){
             update();
             break;
         }
+        case Qt::Key_L: {
+            // Toggle low quality tiles mode
+            m_lowQualityMode = !m_lowQualityMode;
+            std::cout << "[MapView] Mode low quality " 
+                      << (m_lowQualityMode ? "activé" : "désactivé") << std::endl;
+            update();
+            break;
+        }
         default: QWidget::keyPressEvent(ev); break;
     }
 }
@@ -482,12 +509,48 @@ void MapView::requestTile(int z,int x,int y){
 
 void MapView::drawTiles(QPainter& p){
     const int T = 256;
-    const int n = 1 << m_zoom;
+    
+    // Choisir le niveau de zoom des tuiles selon le mode
+    int tileZoom;
+    if (m_lowQualityMode) {
+        // Mode low quality : limiter les niveaux de zoom
+        if (m_zoom >= 13) {
+            tileZoom = 13;
+        } else if (m_zoom >= 10) {
+            tileZoom = 10;
+        } else if (m_zoom >= 8) {
+            tileZoom = 8;
+        } else if (m_zoom >= 4) {
+            tileZoom = 4;
+        } else {
+            tileZoom = (int)m_zoom;  // Zoom normal en dessous de 4
+        }
+    } else {
+        // Mode normal : utiliser le zoom actuel
+        tileZoom = (int)m_zoom;
+    }
+    
+    const int n = 1 << tileZoom;
+    
+    // Adapter les coordonnées en fonction de la différence de zoom
+    int zoomDiff = (int)m_zoom - tileZoom;
+    int scale = 1 << std::abs(zoomDiff);
+    
+    int scaledOffsetX, scaledOffsetY;
+    if (zoomDiff >= 0) {
+        // m_zoom >= tileZoom : diviser
+        scaledOffsetX = m_offsetX / scale;
+        scaledOffsetY = m_offsetY / scale;
+    } else {
+        // m_zoom < tileZoom : multiplier
+        scaledOffsetX = m_offsetX * scale;
+        scaledOffsetY = m_offsetY * scale;
+    }
 
-    int x0 = int(std::floor(m_offsetX / T));
-    int y0 = int(std::floor(m_offsetY / T));
-    int nx = int(std::ceil((m_offsetX + width()) / T)) - x0;
-    int ny = int(std::ceil((m_offsetY + height()) / T)) - y0;
+    int x0 = int(std::floor(scaledOffsetX / T));
+    int y0 = int(std::floor(scaledOffsetY / T));
+    int nx = int(std::ceil((scaledOffsetX + width() / scale) / T)) - x0;
+    int ny = int(std::ceil((scaledOffsetY + height() / scale) / T)) - y0;
 
     p.fillRect(rect(), QColor(20,20,20));
 
@@ -499,12 +562,14 @@ void MapView::drawTiles(QPainter& p){
             int txWrap = ((tx % n) + n) % n;
             if(ty < 0 || ty >= n) continue;
 
-            const QString url = buildUrl(m_zoom, txWrap, ty);
+            const QString url = buildUrl(tileZoom, txWrap, ty);
             QPixmap* cached = m_memCache.object(url);
-            const QRectF target(tx*T - m_offsetX, ty*T - m_offsetY, T, T);
+            
+            // Afficher la tuile à la taille correcte selon le zoom actuel
+            QRectF target(tx*T*scale - m_offsetX, ty*T*scale - m_offsetY, T*scale, T*scale);
 
             if(!cached){
-                requestTile(m_zoom, txWrap, ty);
+                requestTile(tileZoom, txWrap, ty);
                 p.fillRect(target, QColor(60,60,60));
             } else {
                 p.drawPixmap(target, *cached, QRectF(0,0,T,T));
@@ -568,7 +633,7 @@ QPointF MapView::lonLatToScreen(double lon, double lat) const {
 
 double MapView::metersPerPixelAtLat(double latDeg) const{
     const double R = 6378137.0;
-    return std::cos(deg2rad(latDeg)) * 2.0 * M_PI * R / (256.0 * (1<<m_zoom));
+    return std::cos(deg2rad(latDeg)) * 2.0 * M_PI * R / (256.0 * (1<<(int)m_zoom));
 }
 
 void MapView::lonlatToPixel(double lonDeg, double latDeg, int z, double& px, double& py){
