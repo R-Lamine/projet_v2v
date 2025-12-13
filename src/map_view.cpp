@@ -1,5 +1,6 @@
 #include "map_view.h"
 #include "vehicle_renderer.h"
+#include "overlay_ui.h"
 #include <QPainter>
 #include <QWheelEvent>
 #include <QMouseEvent>
@@ -38,9 +39,84 @@ MapView::MapView(QWidget* parent)
     // Initialiser le template de tuiles avec le thème sombre par défaut
     m_tilesTemplate = m_darkTilesTemplate;
 
+    // Créer l'overlay UI
+    m_uiOverlay = new UIOverlay(this);
+    m_uiOverlay->raise();  // S'assurer qu'il est au-dessus de la carte
+    
+    // Connecter les signaux de l'overlay
+    connect(m_uiOverlay->topBar(), &TopBar::startPauseClicked, this, [this]() {
+        if (m_simulator) {
+            m_simulator->togglePause();
+            m_uiOverlay->topBar()->setRunning(m_simulator->isRunning());
+        }
+    });
+    
+    connect(m_uiOverlay->zoomControls(), &ZoomControls::zoomIn, this, &MapView::zoomIn);
+    connect(m_uiOverlay->zoomControls(), &ZoomControls::zoomOut, this, &MapView::zoomOut);
+    
+    // Connecter les toggles du panneau de paramètres
+    auto* params = m_uiOverlay->bottomMenu()->parametersPanel();
+    connect(params, &ParametersPanel::showConnectionsChanged, this, [this](bool show) {
+        m_drawDirectConnections = show;
+        update();
+    });
+    connect(params, &ParametersPanel::showRangesChanged, this, [this](bool show) {
+        m_showRanges = show;
+        update();
+    });
+    connect(params, &ParametersPanel::showTransitiveChanged, this, [this](bool show) {
+        m_showTransitiveConnections = show;
+        if (m_simulator) {
+            m_simulator->interferenceGraph().enableTransitiveClosure(show);
+        }
+        update();
+    });
+    connect(params, &ParametersPanel::transmissionRangeChanged, this, [this](int range) {
+        if (m_simulator) {
+            // Mettre à jour le rayon de transmission de tous les véhicules
+            for (auto* v : m_simulator->vehicles()) {
+                v->setTransmissionRange(range);
+            }
+            update();
+        }
+    });
+
     connect(&m_net, &QNetworkAccessManager::finished, this, [this](QNetworkReply* rep){
         rep->deleteLater();
     });
+}
+
+void MapView::setSimulator(Simulator* sim) {
+    m_simulator = sim;
+    if (m_uiOverlay) {
+        m_uiOverlay->setSimulator(sim);
+        // Synchroniser l'état initial de l'UI avec le simulateur
+        if (sim) {
+            m_uiOverlay->topBar()->setRunning(sim->isRunning());
+            
+            // Connecter les signaux du simulateur pour mettre à jour l'UI
+            connect(sim, &Simulator::simulationStarted, this, [this]() {
+                m_uiOverlay->topBar()->setRunning(true);
+            });
+            connect(sim, &Simulator::simulationPaused, this, [this]() {
+                m_uiOverlay->topBar()->setRunning(false);
+            });
+            connect(sim, &Simulator::simulationResumed, this, [this]() {
+                m_uiOverlay->topBar()->setRunning(true);
+            });
+            connect(sim, &Simulator::simulationStopped, this, [this]() {
+                m_uiOverlay->topBar()->setRunning(false);
+            });
+        }
+    }
+}
+
+void MapView::zoomIn() {
+    zoomAt(QPoint(width()/2, height()/2), 2.0);
+}
+
+void MapView::zoomOut() {
+    zoomAt(QPoint(width()/2, height()/2), 0.5);
 }
 
 bool MapView::loadImage(const QString& path){
@@ -194,8 +270,8 @@ void MapView::paintEvent(QPaintEvent*){
         // Seuil: ne dessiner les détails que s'il y a moins de 500 véhicules visibles
         bool drawDetails = visibleVehicles.size() < 500;
 
-        // Dessiner les rayons de transmission uniquement si peu de véhicules visibles
-        if (drawDetails) {
+        // Dessiner les rayons de transmission si activé et peu de véhicules visibles
+        if (m_showRanges && drawDetails) {
             for (auto* v : visibleVehicles) {
                 auto [lat, lon] = v->getPosition();
                 QPointF pt = lonLatToScreen(lon, lat);
@@ -252,26 +328,28 @@ void MapView::paintEvent(QPaintEvent*){
                 }
             }
 
-            // Dessiner ensuite les connexions directes (lignes orange douces)
-            QPen connectionPen(QColor(135, 206, 235, 150));  // Orange chaud, semi-transparent
-            connectionPen.setWidth(2);
-            p.setPen(connectionPen);
+            // Dessiner ensuite les connexions directes (lignes bleues) si activé
+            if (m_drawDirectConnections) {
+                QPen connectionPen(QColor(135, 206, 235, 150));  // Bleu clair, semi-transparent
+                connectionPen.setWidth(2);
+                p.setPen(connectionPen);
 
-            for (auto* v : visibleVehicles) {
-                auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
-                auto [lat1, lon1] = v->getPosition();
-                QPointF pt1 = lonLatToScreen(lon1, lat1);
+                for (auto* v : visibleVehicles) {
+                    auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
+                    auto [lat1, lon1] = v->getPosition();
+                    QPointF pt1 = lonLatToScreen(lon1, lat1);
 
-                for (int neighborId : directNeighbors) {
-                    for (auto* neighbor : vehicles) {
-                        if (neighbor && neighbor->getId() == neighborId) {
-                            auto [lat2, lon2] = neighbor->getPosition();
-                            QPointF pt2 = lonLatToScreen(lon2, lat2);
-                            
-                            if (v->getId() < neighborId) {
-                                p.drawLine(pt1, pt2);
+                    for (int neighborId : directNeighbors) {
+                        for (auto* neighbor : vehicles) {
+                            if (neighbor && neighbor->getId() == neighborId) {
+                                auto [lat2, lon2] = neighbor->getPosition();
+                                QPointF pt2 = lonLatToScreen(lon2, lat2);
+                                
+                                if (v->getId() < neighborId) {
+                                    p.drawLine(pt1, pt2);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                 }
@@ -359,6 +437,16 @@ void MapView::paintEvent(QPaintEvent*){
             // Utiliser le VehicleRenderer pour dessiner le véhicule
             VehicleRenderer::drawVehicle(p, pt, heading, vehicleColor, vehicleSize);
         }
+    }
+
+    // Mettre à jour les stats et infos de l'UI overlay
+    if (m_uiOverlay) {
+        m_uiOverlay->updateStats();
+        
+        // Mettre à jour les infos de carte (zoom, position)
+        double lonC, latC;
+        screenToLonLat(QPoint(width()/2, height()/2), lonC, latC);
+        m_uiOverlay->updateMapInfo(m_zoom, lonC, latC);
     }
 
     drawHUD(p);
@@ -457,7 +545,12 @@ void MapView::keyPressEvent(QKeyEvent* ev){
     }
 }
 
-void MapView::resizeEvent(QResizeEvent*){}
+void MapView::resizeEvent(QResizeEvent*) {
+    // Redimensionner l'overlay pour couvrir toute la vue
+    if (m_uiOverlay) {
+        m_uiOverlay->setGeometry(0, 0, width(), height());
+    }
+}
 
 QString MapView::buildUrl(int z,int x,int y) const{
     QString u = m_tilesTemplate;
@@ -592,26 +685,11 @@ void MapView::drawTiles(QPainter& p){
 }
 
 void MapView::drawHUD(QPainter& p){
-    const int margin = 12;
-    const int pad = 8;
-    QFont f = p.font();
-    f.setPointSizeF(f.pointSizeF()*0.95);
-    p.setFont(f);
-
+    // Les infos sont maintenant affichées dans la TopBar de l'UI overlay
+    // On garde juste l'échelle en bas à gauche
+    
     double lonC, latC;
     screenToLonLat(QPoint(width()/2, height()/2), lonC, latC);
-    QString info = QString("Zoom %1  |  Centre Lon %2  Lat %3")
-        .arg(m_zoom).arg(lonC,0,'f',5).arg(latC,0,'f',5);
-
-    QFontMetrics fm(p.font());
-    int w = fm.horizontalAdvance(info) + 2*pad;
-    int h = fm.height() + 2*pad;
-    QRect box(width()-w-margin, margin, w, h);
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0,0,0,140));
-    p.drawRoundedRect(box, 6, 6);
-    p.setPen(Qt::white);
-    p.drawText(box.adjusted(pad,pad,-pad,-pad), Qt::AlignLeft|Qt::AlignVCenter, info);
 
     double mpp = metersPerPixelAtLat(latC);
     static const int niceVals[] = {5,10,20,50,100,200,500,1000,2000,5000,10000,20000};
@@ -625,6 +703,12 @@ void MapView::drawHUD(QPainter& p){
 
     int bx = 12;
     int by = height() - 12 - 20;
+    
+    // Décaler l'échelle vers le haut si le menu du bas est visible
+    if (m_uiOverlay && m_uiOverlay->bottomMenu()->isExpanded()) {
+        by = height() - m_uiOverlay->bottomMenu()->expandedHeight() - 30;
+    }
+    
     p.setPen(QPen(Qt::white, 2));
     p.drawLine(bx, by, bx+barPx, by);
     p.drawLine(bx, by-5, bx, by+5);

@@ -21,6 +21,8 @@ Simulator::~Simulator() {
 
 void Simulator::start(int tickIntervalMs) {
     m_tickIntervalMs = tickIntervalMs;
+    m_running = true;
+    m_paused = false;
     m_elapsed.restart();
     
     // Initialiser la grille spatiale UNE SEULE FOIS au démarrage
@@ -34,17 +36,44 @@ void Simulator::start(int tickIntervalMs) {
 }
 
 void Simulator::pause() {
+    m_paused = true;
     m_timer->stop();
     emit simulationPaused();
 }
 
 void Simulator::resume() {
+    m_paused = false;
     m_elapsed.restart();
     m_timer->start(m_tickIntervalMs);
     emit simulationResumed();
 }
 
+void Simulator::togglePause() {
+    if (m_paused) {
+        resume();
+    } else {
+        pause();
+    }
+}
+
+void Simulator::clearVehicles() {
+    for (Vehicule* v : m_vehicles) {
+        delete v;
+    }
+    m_vehicles.clear();
+}
+
+void Simulator::reset() {
+    pause();
+    clearVehicles();
+    m_interferenceGraph.clear();
+    if (m_mapView) {
+        m_mapView->update();
+    }
+}
+
 void Simulator::stop() {
+    m_running = false;
     m_timer->stop();
     emit simulationStopped();
 }
@@ -64,13 +93,13 @@ void Simulator::onTick() {
     // Avec beaucoup de véhicules (>1000), ne reconstruire le graphe que rarement
     int rebuildInterval = 10; // Par défaut 500ms
     if (m_vehicles.size() > 500) {
-        rebuildInterval = 20; // 5 secondes pour >500 véhicules
+        rebuildInterval = 20;
     }
     if (m_vehicles.size() > 1000) {
-        rebuildInterval = 40; // 10 secondes pour >1000 véhicules
+        rebuildInterval = 40; // 2.5 secondes
     }
     if (m_vehicles.size() > 2000) {
-        rebuildInterval = 100; // 30 secondes pour >2000 véhicules - limite les freezes
+        rebuildInterval = 100; // 5 secondes
     }
     
     if (tickCount % rebuildInterval == 0) {

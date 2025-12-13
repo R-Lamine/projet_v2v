@@ -25,6 +25,9 @@ public:
     void pause(); // pauses (timer stops but state preserved)
     void resume(); // resumes after pause
     void stepOnce(); // perform a single simulation
+    void togglePause(); // toggle between pause and resume
+    void reset(); // reset simulation to initial state
+    bool isRunning() const { return m_running && !m_paused; }
 
     //vehicle management
     void addVehicle(Vehicule* v); // takes ownership
@@ -42,6 +45,7 @@ public:
     // Access to interference graph for visualization
     const InterferenceGraph& interferenceGraph() const { return m_interferenceGraph; }
     InterferenceGraph& interferenceGraph() { return m_interferenceGraph; }
+    const InterferenceGraph& getInterferenceGraph() const { return m_interferenceGraph; }
 
    const RoadGraph& getGraph() const {return graph;}
 

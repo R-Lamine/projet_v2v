@@ -58,9 +58,9 @@ int main(int argc, char** argv){
     map->setCenterLonLat(7.7521, 48.5734, 16);
 
     win.setCentralWidget(map);
-    QObject::connect(map, &MapView::cursorInfoChanged, &win, [&](const QString& s){
-        win.statusBar()->showMessage(s);
-    });
+    
+    // Désactiver la barre de statut (les infos sont maintenant dans la TopBar)
+    win.setStatusBar(nullptr);
 
     win.resize(1200, 800);
     win.show();

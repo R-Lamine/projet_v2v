@@ -9,8 +9,8 @@
 #include <QPointer>
 #include <QTimer>
 
-
 class Simulator;
+class UIOverlay;
 
 struct TileKey {
     int z;
@@ -48,10 +48,17 @@ public:
     double getOffsetY() const {return m_offsetY;}
 
     //setter
-    void setSimulator(Simulator* sim) { m_simulator = sim; }
+    void setSimulator(Simulator* sim);
 
     //util
     static void lonlatToPixel(double lonDeg, double latDeg, int z, double& px, double& py);
+    
+    // UI Overlay
+    UIOverlay* uiOverlay() { return m_uiOverlay; }
+    
+    // Zoom public pour l'overlay
+    void zoomIn();
+    void zoomOut();
 
 signals:
     void cursorInfoChanged(const QString& text);
@@ -68,12 +75,15 @@ protected:
 private:
     // --
     Simulator* m_simulator = nullptr;
+    UIOverlay* m_uiOverlay = nullptr;
 
     // ---- Fallback image ----
     QPixmap m_base;
 
-    // ---- Toggle transitive connections ----
+    // ---- Display toggles ----
     bool m_showTransitiveConnections = true;
+    bool m_drawDirectConnections = false;
+    bool m_showRanges = false;
 
     // ---- Toggle low quality tiles mode ----
     bool m_lowQualityMode = true;
