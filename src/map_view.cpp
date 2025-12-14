@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <QtMath>
 #include <QRandomGenerator>
+#include <QCoreApplication>
 #include <algorithm>
 #include <cmath>
 
@@ -34,8 +35,18 @@ MapView::MapView(QWidget* parent)
     pal.setColor(QPalette::Window, QColor(30,30,30));
     setPalette(pal);
 
-    // Définir le chemin du SVG (chargement paresseux lors du premier dessin)
-    VehicleRenderer::setSvgPath("../../data/car-top-view-icon.svg");
+    // Définir le chemin du SVG - chercher dans plusieurs emplacements
+    QString svgPath;
+    QStringList svgSearchPaths = {
+        QCoreApplication::applicationDirPath() + "/data/car-top-view-icon.svg",
+        "data/car-top-view-icon.svg",
+        "../../data/car-top-view-icon.svg"
+    };
+    for (const QString& path : svgSearchPaths) {
+        if (QFile::exists(path)) { svgPath = path; break; }
+    }
+    if (svgPath.isEmpty()) svgPath = "../../data/car-top-view-icon.svg";
+    VehicleRenderer::setSvgPath(svgPath);
 
     // Initialiser le template de tuiles avec le thème sombre par défaut
     m_tilesTemplate = m_darkTilesTemplate;

@@ -3,6 +3,7 @@
 #include <QStatusBar>
 #include <QProcessEnvironment>
 #include <QObject>
+#include <QDir>
 #include <iostream>
 
 #include "map_view.h"
@@ -36,8 +37,19 @@ int main(int argc, char** argv){
     QApplication app(argc, argv);
 
     // ----------------------
-    //  Load OSM data
-    OSMReader reader("../../data/strasbourg.osm.pbf");
+    //  Load OSM data - chercher dans plusieurs emplacements
+    QString osmPath;
+    QStringList searchPaths = {
+        QCoreApplication::applicationDirPath() + "/data/strasbourg.osm.pbf",
+        "data/strasbourg.osm.pbf",
+        "../../data/strasbourg.osm.pbf"
+    };
+    for (const QString& path : searchPaths) {
+        if (QFile::exists(path)) { osmPath = path; break; }
+    }
+    if (osmPath.isEmpty()) osmPath = "../../data/strasbourg.osm.pbf";
+    
+    OSMReader reader(osmPath.toStdString().c_str());
     reader.read();
     reader.printSummary();
 

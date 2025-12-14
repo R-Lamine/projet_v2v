@@ -17,7 +17,19 @@ set(CMAKE_AUTOUIC ON)
 # ===============================
 
 # Boost (for graph structures)
-find_package(Boost REQUIRED)
+# Help FindBoost locate MSYS2 MinGW64 installation when used on Windows
+if (WIN32)
+    # Adjust these paths if your MSYS2 is installed elsewhere
+    set(BOOST_ROOT "C:/msys64/mingw64" CACHE PATH "Boost root (MSYS2 mingw64)")
+    set(BOOST_INCLUDEDIR "C:/msys64/mingw64/include" CACHE PATH "Boost include dir")
+    set(BOOST_LIBRARYDIR "C:/msys64/mingw64/lib" CACHE PATH "Boost library dir")
+    set(Boost_USE_STATIC_LIBS OFF CACHE BOOL "Use static Boost libraries")
+    set(Boost_USE_MULTITHREADED ON CACHE BOOL "Use multithreaded Boost")
+    set(Boost_USE_STATIC_RUNTIME OFF CACHE BOOL "Use static runtime for Boost")
+endif()
+
+# Request the graph component explicitly (used by this project)
+find_package(Boost REQUIRED COMPONENTS graph)
 
 
 # Qt (for GUI visualization)
@@ -26,11 +38,20 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Core Network 
 
 
 # PROJ (geographic projection library)
-include_directories(/usr/include)
+# On Unix systems the system include paths are under /usr/include.
+# On Windows/MSYS2 we rely on CMAKE_PREFIX_PATH (/mingw64) so avoid hardcoded /usr/include.
+if (UNIX)
+    include_directories(/usr/include)
+endif()
+
 link_libraries(proj)
 
 # libosmium
-include_directories(/usr/include/osmium)
+# Only add the Linux-specific include path on UNIX. On MSYS2/Windows the
+# libraries/headers should be found via CMAKE_PREFIX_PATH (e.g. /mingw64).
+if (UNIX)
+    include_directories(/usr/include/osmium)
+endif()
 
 
 # ===============================
