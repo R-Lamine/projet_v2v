@@ -1,0 +1,21 @@
+services:
+  connected-vehicles:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: connected-vehicles
+    # Partager l'affichage X11 avec le conteneur
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      # Montage du serveur X11
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Montage des données (pour persistance si besoin)
+      - ./data:/app/data:ro
+    network_mode: host
+    stdin_open: true
+    tty: true
+    # Permissions pour accéder au GPU (optionnel, pour de meilleures performances)
+    devices:
+      - /dev/dri:/dev/dri
