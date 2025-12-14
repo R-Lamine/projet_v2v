@@ -3,8 +3,19 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QDebug>
+#include <QtConcurrent>
 #include <limits>
 #include <algorithm>
+
+// Fonction statique pour calculer le graphe dans un thread séparé
+static InterferenceGraph calculateGraphAsync(const std::vector<VehicleSnapshot>& snapshots, 
+                                              bool computeTransitive,
+                                              const AntennaNeighborhood& antennaInfo) {
+    InterferenceGraph tempGraph;
+    tempGraph.enableTransitiveClosure(computeTransitive);
+    tempGraph.buildGraphFromSnapshots(snapshots, &antennaInfo);
+    return tempGraph;
+}
 
 Simulator::Simulator(RoadGraph& graph, MapView* mapView, QObject* parent)
     :graph(graph), m_mapView(mapView), QObject(parent)
@@ -20,10 +31,20 @@ Simulator::Simulator(RoadGraph& graph, MapView* mapView, QObject* parent)
     for (auto vp = boost::vertices(graph); vp.first != vp.second; ++vp.first) {
         m_vertices.push_back(*vp.first);
     }
+    
+    // Créer le watcher pour les calculs asynchrones
+    m_futureWatcher = new QFutureWatcher<InterferenceGraph>(this);
+    connect(m_futureWatcher, &QFutureWatcher<InterferenceGraph>::finished, 
+            this, &Simulator::onGraphCalculationFinished);
 }
 
 Simulator::~Simulator() {
     stop();
+    
+    // Attendre la fin du calcul en cours
+    if (m_futureWatcher && m_futureWatcher->isRunning()) {
+        m_futureWatcher->waitForFinished();
+    }
 }
 
 void Simulator::start(int tickIntervalMs) {
@@ -98,36 +119,91 @@ void Simulator::onTick() {
     double deltaTime = m_elapsed.restart() / 1000.0; // seconds
     deltaTime *= m_speedMultiplier;
 
-    static int tickCount = 0;
-    tickCount++;
-
     // Mise à jour de la position des véhicules
     for (Vehicule* v : m_vehicles) {
         if(v) v->update(deltaTime);
     }
 
-    // Avec beaucoup de véhicules (>1000), ne reconstruire le graphe que rarement
-    int rebuildInterval = 10; // Par défaut 500ms
-    if (m_vehicles.size() > 500) {
-        rebuildInterval = 20;
-    }
-    if (m_vehicles.size() > 1000) {
-        rebuildInterval = 40; // 2.5 secondes
-    }
-    if (m_vehicles.size() > 2000) {
-        rebuildInterval = 100; // 5 secondes
-    }
-    
-    if (tickCount % rebuildInterval == 0) {
-        m_interferenceGraph.buildGraph(m_vehicles);
+    // Lancer le calcul du graphe en arrière-plan si pas déjà en cours
+    if (!m_calculationInProgress && !m_vehicles.empty()) {
+        startGraphCalculation();
     }
 
     emit ticked(deltaTime);
 }
 
+void Simulator::startGraphCalculation() {
+    if (m_calculationInProgress) return;
+    
+    // Créer les snapshots des véhicules avec leurs infos d'antenne
+    std::vector<VehicleSnapshot> snapshots;
+    snapshots.reserve(m_vehicles.size());
+    
+    // Récupérer la grille spatiale pour les infos d'antennes
+    const SpatialGrid& spatialGrid = m_interferenceGraph.getSpatialGrid();
+    
+    for (size_t i = 0; i < m_vehicles.size(); ++i) {
+        const Vehicule* v = m_vehicles[i];
+        if (v) {
+            auto [lat, lon] = v->getPosition();
+            int microAntennaId = spatialGrid.getMicroAntennaId(v->getId());
+            snapshots.push_back({
+                v->getId(),
+                lon,
+                lat,
+                v->getTransmissionRange(),
+                microAntennaId
+            });
+        }
+    }
+    
+    if (snapshots.empty()) return;
+    
+    // Créer les infos de voisinage d'antennes
+    AntennaNeighborhood antennaInfo;
+    
+    // Remplir les véhicules par antenne (utiliser l'index dans snapshots)
+    for (size_t i = 0; i < snapshots.size(); ++i) {
+        int antennaId = snapshots[i].microAntennaId;
+        if (antennaId >= 0) {
+            antennaInfo.vehiclesPerAntenna[antennaId].push_back(i);
+        }
+    }
+    
+    // Copier les voisinages d'antennes depuis la grille spatiale
+    const auto& microAntennas = spatialGrid.getMicroAntennas();
+    for (const auto& [antennaId, micro] : microAntennas) {
+        antennaInfo.neighborAntennas[antennaId] = micro.neighborMicroIds;
+    }
+    
+    m_calculationInProgress = true;
+    
+    // Récupérer le flag de fermeture transitive
+    bool computeTransitive = m_interferenceGraph.isTransitiveClosureEnabled();
+    
+    // Lancer le calcul dans un thread séparé
+    QFuture<InterferenceGraph> future = QtConcurrent::run(calculateGraphAsync, snapshots, computeTransitive, antennaInfo);
+    m_futureWatcher->setFuture(future);
+}
+
+void Simulator::onGraphCalculationFinished() {
+    // Récupérer le résultat et le copier dans le graphe principal
+    InterferenceGraph result = m_futureWatcher->result();
+    m_interferenceGraph.copyFrom(result);
+    
+    m_calculationInProgress = false;
+    
+    // Redessiner la vue
+    if (m_mapView) {
+        m_mapView->update();
+    }
+}
+
 void Simulator::addVehicle(Vehicule* v) {
     if(v) {
         m_vehicles.push_back(v);
+        // Assigner le nouveau véhicule à son antenne
+        m_interferenceGraph.assignVehicleToAntenna(v);
         emit vehicleCountChanged(m_vehicles.size());
     }
 }
@@ -137,9 +213,11 @@ bool Simulator::removeVehicle(Vehicule* v) {
     
     auto it = std::find(m_vehicles.begin(), m_vehicles.end(), v);
     if (it != m_vehicles.end()) {
+        // Retirer le véhicule de son antenne avant de le supprimer
+        m_interferenceGraph.removeVehicleFromAntenna(v->getId());
         m_vehicles.erase(it);
         delete v;
-        m_interferenceGraph.buildGraph(m_vehicles);
+        // Le graphe sera recalculé au prochain tick par le worker thread
         emit vehicleCountChanged(m_vehicles.size());
         return true;
     }
@@ -182,9 +260,8 @@ Vehicule* Simulator::createVehicleNear(double lon, double lat) {
     
     Vehicule* car = new Vehicule(m_nextVehicleId++, graph, nearestVertex, goal,
                                  speed, range, collisionDist);
-    m_vehicles.push_back(car);
-    // Pas de buildGraph ici - sera fait au prochain tick
-    emit vehicleCountChanged(m_vehicles.size());
+    // Utiliser addVehicle pour assigner le véhicule à une antenne
+    addVehicle(car);
     
     return car;
 }
@@ -201,6 +278,8 @@ void Simulator::setVehicleCount(int count) {
         int toRemove = currentCount - count;
         for (int i = 0; i < toRemove && !m_vehicles.empty(); ++i) {
             Vehicule* v = m_vehicles.back();
+            // Retirer le véhicule de son antenne avant de le supprimer
+            m_interferenceGraph.removeVehicleFromAntenna(v->getId());
             m_vehicles.pop_back();
             delete v;
         }
@@ -237,8 +316,7 @@ void Simulator::setVehicleCount(int count) {
         }
     }
     
-    // Reconstruire le graphe d'interférence
-    m_interferenceGraph.buildGraph(m_vehicles);
+    // Le graphe sera recalculé au prochain tick par le worker thread
     
     // Notifier le changement de nombre de véhicules
     emit vehicleCountChanged(m_vehicles.size());
@@ -256,6 +334,5 @@ void Simulator::placeAntennas(int numLarge, int numSmall) {
     // Réinitialiser la grille avec les nouveaux paramètres
     m_interferenceGraph.reinitializeSpatialGrid(m_vehicles, numLarge, numSmall);
     
-    // Reconstruire le graphe d'interférence avec la nouvelle grille
-    m_interferenceGraph.buildGraph(m_vehicles);
+    // Le graphe sera recalculé au prochain tick par le worker thread
 }

@@ -18,6 +18,16 @@ void InterferenceGraph::clear() {
     m_spatialGrid.clear();
 }
 
+void InterferenceGraph::copyFrom(const InterferenceGraph& other) {
+    m_adjacencyList = other.m_adjacencyList;
+    m_transitiveClosure = other.m_transitiveClosure;
+    // On ne copie pas m_vehicleMap car il contient des pointeurs
+    // On ne copie pas m_spatialGrid car elle est initialisée séparément
+    m_lastBuildTimeMs = other.m_lastBuildTimeMs;
+    m_lastComparisons = other.m_lastComparisons;
+    m_lastAvgNeighbors = other.m_lastAvgNeighbors;
+}
+
 void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
     auto startTime = std::chrono::high_resolution_clock::now();
     
@@ -83,6 +93,129 @@ void InterferenceGraph::buildGraph(const std::vector<Vehicule*>& vehicles) {
                   << duration.count() / 1000.0 << " ms ("
                   << (m_useSpatialGrid && vehicles.size() >= 20 ? "optimisé" : "classique") << ")" << std::endl;
     }
+}
+
+void InterferenceGraph::buildGraphFromSnapshots(const std::vector<VehicleSnapshot>& snapshots,
+                                                  const AntennaNeighborhood* antennaInfo) {
+    // Cette méthode est thread-safe car elle travaille sur des copies
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    m_adjacencyList.clear();
+    m_transitiveClosure.clear();
+    m_vehicleMap.clear();
+
+    if (snapshots.empty()) {
+        return;
+    }
+
+    // Initialiser les ensembles pour chaque véhicule
+    for (const auto& snap : snapshots) {
+        m_adjacencyList[snap.id] = std::unordered_set<int>();
+    }
+
+    int comparisons = 0;
+    
+    // Si on a les infos d'antennes, utiliser l'optimisation par antennes
+    if (antennaInfo != nullptr && !antennaInfo->vehiclesPerAntenna.empty()) {
+        // Créer un index pour accéder aux snapshots par leur ID
+        std::unordered_map<int, size_t> idToIndex;
+        for (size_t i = 0; i < snapshots.size(); ++i) {
+            idToIndex[snapshots[i].id] = i;
+        }
+        
+        // Pour chaque antenne, comparer les véhicules de cette antenne entre eux
+        // et avec les véhicules des antennes voisines
+        for (const auto& [antennaId, vehicleIndices] : antennaInfo->vehiclesPerAntenna) {
+            // 1. Comparer les véhicules de la même antenne entre eux
+            for (size_t i = 0; i < vehicleIndices.size(); ++i) {
+                size_t idx1 = vehicleIndices[i];
+                if (idx1 >= snapshots.size()) continue;
+                const auto& v1 = snapshots[idx1];
+                
+                for (size_t j = i + 1; j < vehicleIndices.size(); ++j) {
+                    size_t idx2 = vehicleIndices[j];
+                    if (idx2 >= snapshots.size()) continue;
+                    const auto& v2 = snapshots[idx2];
+                    
+                    comparisons++;
+                    
+                    // Calcul rapide de distance (approximation euclidienne)
+                    double dLat = (v2.lat - v1.lat) * 111000.0;
+                    double dLon = (v2.lon - v1.lon) * 111000.0 * std::cos(v1.lat * M_PI / 180.0);
+                    double distance = std::sqrt(dLat * dLat + dLon * dLon);
+                    
+                    if (distance <= v1.transmissionRange && distance <= v2.transmissionRange) {
+                        m_adjacencyList[v1.id].insert(v2.id);
+                        m_adjacencyList[v2.id].insert(v1.id);
+                    }
+                }
+            }
+            
+            // 2. Comparer avec les véhicules des antennes voisines
+            auto neighborIt = antennaInfo->neighborAntennas.find(antennaId);
+            if (neighborIt != antennaInfo->neighborAntennas.end()) {
+                for (int neighborAntennaId : neighborIt->second) {
+                    // Ne comparer que si notre ID est plus petit (éviter doublons)
+                    if (neighborAntennaId <= antennaId) continue;
+                    
+                    auto neighborVehiclesIt = antennaInfo->vehiclesPerAntenna.find(neighborAntennaId);
+                    if (neighborVehiclesIt == antennaInfo->vehiclesPerAntenna.end()) continue;
+                    
+                    for (size_t idx1 : vehicleIndices) {
+                        if (idx1 >= snapshots.size()) continue;
+                        const auto& v1 = snapshots[idx1];
+                        
+                        for (size_t idx2 : neighborVehiclesIt->second) {
+                            if (idx2 >= snapshots.size()) continue;
+                            const auto& v2 = snapshots[idx2];
+                            
+                            comparisons++;
+                            
+                            double dLat = (v2.lat - v1.lat) * 111000.0;
+                            double dLon = (v2.lon - v1.lon) * 111000.0 * std::cos(v1.lat * M_PI / 180.0);
+                            double distance = std::sqrt(dLat * dLat + dLon * dLon);
+                            
+                            if (distance <= v1.transmissionRange && distance <= v2.transmissionRange) {
+                                m_adjacencyList[v1.id].insert(v2.id);
+                                m_adjacencyList[v2.id].insert(v1.id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // Fallback: O(n²) classique si pas d'infos d'antennes
+        for (size_t i = 0; i < snapshots.size(); ++i) {
+            const auto& v1 = snapshots[i];
+
+            for (size_t j = i + 1; j < snapshots.size(); ++j) {
+                const auto& v2 = snapshots[j];
+                comparisons++;
+                
+                double dLat = (v2.lat - v1.lat) * 111000.0;
+                double dLon = (v2.lon - v1.lon) * 111000.0 * std::cos(v1.lat * M_PI / 180.0);
+                double distance = std::sqrt(dLat * dLat + dLon * dLon);
+
+                if (distance <= v1.transmissionRange && distance <= v2.transmissionRange) {
+                    m_adjacencyList[v1.id].insert(v2.id);
+                    m_adjacencyList[v2.id].insert(v1.id);
+                }
+            }
+        }
+    }
+
+    // Calculer la fermeture transitive si activé
+    if (m_computeTransitive) {
+        computeTransitiveClosure();
+    }
+
+    m_lastComparisons = comparisons;
+    m_lastAvgNeighbors = snapshots.size() > 0 ? static_cast<double>(comparisons * 2) / snapshots.size() : 0.0;
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    m_lastBuildTimeMs = duration.count() / 1000.0;
 }
 
 void InterferenceGraph::buildGraphClassic(const std::vector<Vehicule*>& vehicles) {
@@ -285,6 +418,13 @@ void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehi
         if (vehicles.size() > 2000) numMicro = 20;
     }
     
+    // Utiliser la portée de transmission du premier véhicule (tous ont la même)
+    double maxRange = 500.0;  // Valeur par défaut
+    if (!vehicles.empty() && vehicles[0]) {
+        maxRange = vehicles[0]->getTransmissionRange();
+    }
+    m_spatialGrid.setMaxTransmissionRange(maxRange);
+    
     m_spatialGrid.initialize(vehicles, numMacro, numMicro);
     m_gridInitialized = true;
     
@@ -293,7 +433,7 @@ void InterferenceGraph::initializeSpatialGrid(const std::vector<Vehicule*>& vehi
     
     std::cout << "[InterferenceGraph] Grille initialisée en " << duration.count() 
               << " ms avec " << numMacro << " macro et " 
-              << numMicro << " micro antennes par macro" << std::endl;
+              << numMicro << " micro antennes par macro (portée max: " << maxRange << "m)" << std::endl;
 }
 
 void InterferenceGraph::reinitializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro, int numMicro) {
@@ -305,6 +445,13 @@ void InterferenceGraph::reinitializeSpatialGrid(const std::vector<Vehicule*>& ve
     std::cout << "[InterferenceGraph] Réinitialisation de la grille spatiale (K-means)..." << std::endl;
     auto startTime = std::chrono::high_resolution_clock::now();
     
+    // Utiliser la portée de transmission du premier véhicule (tous ont la même)
+    double maxRange = 500.0;  // Valeur par défaut
+    if (!vehicles.empty() && vehicles[0]) {
+        maxRange = vehicles[0]->getTransmissionRange();
+    }
+    m_spatialGrid.setMaxTransmissionRange(maxRange);
+    
     // Force la réinitialisation
     m_gridInitialized = false;
     m_spatialGrid.initialize(vehicles, numMacro, numMicro);
@@ -315,5 +462,31 @@ void InterferenceGraph::reinitializeSpatialGrid(const std::vector<Vehicule*>& ve
     
     std::cout << "[InterferenceGraph] Grille réinitialisée en " << duration.count() 
               << " ms avec " << numMacro << " macro et " 
-              << numMicro << " micro antennes par macro" << std::endl;
+              << numMicro << " micro antennes par macro (portée max: " << maxRange << "m)" << std::endl;
+}
+
+void InterferenceGraph::updateTransmissionRange(double range) {
+    if (!m_gridInitialized) {
+        return;  // La grille n'est pas encore initialisée
+    }
+    
+    // Mettre à jour la portée dans la grille spatiale
+    m_spatialGrid.setMaxTransmissionRange(range);
+    
+    // Recalculer les voisinages entre antennes
+    m_spatialGrid.updateNeighborhoods();
+}
+
+void InterferenceGraph::assignVehicleToAntenna(Vehicule* vehicle) {
+    if (!m_gridInitialized || !vehicle) {
+        return;
+    }
+    m_spatialGrid.assignVehicleToAntenna(vehicle);
+}
+
+void InterferenceGraph::removeVehicleFromAntenna(int vehicleId) {
+    if (!m_gridInitialized) {
+        return;
+    }
+    m_spatialGrid.removeVehicleFromAntenna(vehicleId);
 }

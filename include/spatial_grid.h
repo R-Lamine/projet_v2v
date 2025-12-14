@@ -56,10 +56,39 @@ public:
                    int microPerMacro = 10);
 
     /**
+     * @brief Définit la portée de transmission maximale pour le calcul des voisinages
+     * @param range Portée maximale en mètres
+     */
+    void setMaxTransmissionRange(double range) { m_maxTransmissionRange = range; }
+    
+    /**
+     * @brief Obtient la portée de transmission maximale utilisée
+     */
+    double getMaxTransmissionRange() const { return m_maxTransmissionRange; }
+    
+    /**
+     * @brief Recalcule les voisinages entre antennes avec la portée actuelle
+     * Appelé quand la portée de transmission change
+     */
+    void updateNeighborhoods();
+
+    /**
      * @brief Assigne chaque véhicule à sa petite antenne la plus proche
      * @param vehicles Liste des véhicules
      */
     void assignVehiclesToAntennas(const std::vector<Vehicule*>& vehicles);
+
+    /**
+     * @brief Assigne un seul véhicule à sa petite antenne la plus proche
+     * @param vehicle Le véhicule à assigner
+     */
+    void assignVehicleToAntenna(Vehicule* vehicle);
+
+    /**
+     * @brief Retire un véhicule de son antenne
+     * @param vehicleId ID du véhicule à retirer
+     */
+    void removeVehicleFromAntenna(int vehicleId);
 
     /**
      * @brief Obtient tous les véhicules proches (même antenne + voisines)
@@ -126,6 +155,7 @@ private:
     // Paramètres
     int m_numMacroAntennas;
     int m_microPerMacro;
+    double m_maxTransmissionRange = 1000.0;  // Portée de transmission max (par défaut 1000m)
 };
 
 #endif // SPATIAL_GRID_H

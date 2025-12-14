@@ -104,6 +104,8 @@ MapView::MapView(QWidget* parent)
             for (auto* v : m_simulator->vehicles()) {
                 v->setTransmissionRange(range);
             }
+            // Mettre à jour les voisinages d'antennes avec la nouvelle portée
+            m_simulator->interferenceGraph().updateTransmissionRange(range);
             update();
         }
     });

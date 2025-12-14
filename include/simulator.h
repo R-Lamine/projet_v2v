@@ -4,8 +4,11 @@
 #include <QObject>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QFutureWatcher>
+#include <QMutex>
 #include <vector>
 #include <iostream>
+#include <atomic>
 
 #include "vehicule.h"
 #include "map_view.h"
@@ -68,11 +71,17 @@ signals:
 public slots:
     // slot used by internal timer
     void onTick();
+    
+private slots:
+    void onGraphCalculationFinished();
 
 
 private:
     // Internal step logic: advances all vehicles by deltaTime
     void updateSimulation(double deltaSeconds);
+    
+    // Lance le calcul du graphe en arrière-plan
+    void startGraphCalculation();
 
 private:
     const RoadGraph& graph;
@@ -88,6 +97,10 @@ private:
 
     std::vector<Vehicule*> m_vehicles;
     InterferenceGraph m_interferenceGraph;
+    
+    // Pour le calcul asynchrone du graphe
+    QFutureWatcher<InterferenceGraph>* m_futureWatcher = nullptr;
+    std::atomic<bool> m_calculationInProgress{false};
     
     // Pour la création dynamique de véhicules
     std::vector<Vertex> m_vertices;

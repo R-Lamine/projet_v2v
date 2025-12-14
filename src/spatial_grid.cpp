@@ -207,8 +207,7 @@ void SpatialGrid::computeNeighborhoods() {
     
     // OPTIMISATION CRITIQUE: Pour chaque micro, ne prendre QUE les micros 
     // où les véhicules peuvent potentiellement communiquer.
-    // Distance max entre centres = portée transmission (1000m) + 2 × rayon micro
-    const double transmissionRange = 1000.0; // Portée de transmission typique
+    // Distance max entre centres = portée transmission + 2 × rayon micro
     
     for (auto& [id1, micro1] : m_microAntennas) {
         for (auto& [id2, micro2] : m_microAntennas) {
@@ -220,7 +219,7 @@ void SpatialGrid::computeNeighborhoods() {
             
             // Voisines SEULEMENT si un véhicule de micro1 peut communiquer avec un de micro2
             // Distance max = portée + rayon1 + rayon2 (cas extrême: véhicules aux bords opposés)
-            double maxCommDistance = transmissionRange + micro1.radius + micro2.radius;
+            double maxCommDistance = m_maxTransmissionRange + micro1.radius + micro2.radius;
             
             if (dist < maxCommDistance) {
                 micro1.neighborMicroIds.insert(id2);
@@ -248,6 +247,34 @@ void SpatialGrid::assignVehiclesToAntennas(const std::vector<Vehicule*>& vehicle
             m_vehicleToMicroAntenna[v->getId()] = nearestMicro;
             m_microAntennas[nearestMicro].vehicleIds.push_back(v->getId());
         }
+    }
+}
+
+void SpatialGrid::assignVehicleToAntenna(Vehicule* vehicle) {
+    if (!vehicle) return;
+    if (m_microAntennas.empty()) return;  // Grille pas encore initialisée
+    
+    auto [lat, lon] = vehicle->getPosition();
+    int nearestMicro = findNearestMicroAntenna(lat, lon);
+    
+    if (nearestMicro >= 0) {
+        m_vehicleToMicroAntenna[vehicle->getId()] = nearestMicro;
+        m_microAntennas[nearestMicro].vehicleIds.push_back(vehicle->getId());
+    }
+}
+
+void SpatialGrid::removeVehicleFromAntenna(int vehicleId) {
+    auto it = m_vehicleToMicroAntenna.find(vehicleId);
+    if (it == m_vehicleToMicroAntenna.end()) return;
+    
+    int microId = it->second;
+    m_vehicleToMicroAntenna.erase(it);
+    
+    // Retirer le véhicule de la liste de l'antenne
+    auto microIt = m_microAntennas.find(microId);
+    if (microIt != m_microAntennas.end()) {
+        auto& vehicleIds = microIt->second.vehicleIds;
+        vehicleIds.erase(std::remove(vehicleIds.begin(), vehicleIds.end(), vehicleId), vehicleIds.end());
     }
 }
 
@@ -355,4 +382,30 @@ void SpatialGrid::printStats() const {
                   << totalVehicles << " véhicules" << std::endl;
     }
     std::cout << "========================================\n" << std::endl;
+}
+
+void SpatialGrid::updateNeighborhoods() {
+    // Recalculer les voisinages entre antennes avec la nouvelle portée
+    // D'abord effacer les anciens voisinages des micro antennes
+    for (auto& [id, micro] : m_microAntennas) {
+        micro.neighborMicroIds.clear();
+    }
+    
+    // Recalculer seulement les voisinages des micro antennes
+    // (les macro antennes ne dépendent pas de la portée de transmission)
+    for (auto& [id1, micro1] : m_microAntennas) {
+        for (auto& [id2, micro2] : m_microAntennas) {
+            if (id1 >= id2) continue;
+            
+            double dist = distance(micro1.centerLat, micro1.centerLon, 
+                                 micro2.centerLat, micro2.centerLon);
+            
+            double maxCommDistance = m_maxTransmissionRange + micro1.radius + micro2.radius;
+            
+            if (dist < maxCommDistance) {
+                micro1.neighborMicroIds.insert(id2);
+                micro2.neighborMicroIds.insert(id1);
+            }
+        }
+    }
 }

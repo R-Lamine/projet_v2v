@@ -327,7 +327,7 @@ void ParametersPanel::setupUI() {
     layout->addLayout(titleLayout);
     
     // Sliders
-    layout->addWidget(createSliderRow("", "Nombres de véhicules", m_vehicleSlider, m_vehicleValue, 1, 3000, 2000, ""));
+    layout->addWidget(createSliderRow("", "Nombres de véhicules", m_vehicleSlider, m_vehicleValue, 1, 10000, 2000, ""));
     layout->addWidget(createSliderRow("", "Vitesse des véhicules", m_speedSlider, m_speedValue, 1, 500, 50, " km/h"));
     layout->addWidget(createSliderRow("", "Grandes antennes", m_largeAntennaSlider, m_largeAntennaValue, 0, 50, 5, ""));
     layout->addWidget(createSliderRow("", "Petites antennes", m_smallAntennaSlider, m_smallAntennaValue, 0, 200, 20, ""));

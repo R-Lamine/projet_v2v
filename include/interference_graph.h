@@ -5,9 +5,25 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include <mutex>
 #include "spatial_grid.h"
 
 class Vehicule;
+
+// Structure pour stocker un snapshot des positions des véhicules (thread-safe)
+struct VehicleSnapshot {
+    int id;
+    double lon;
+    double lat;
+    double transmissionRange;
+    int microAntennaId;  // ID de la petite antenne à laquelle ce véhicule appartient
+};
+
+// Structure pour stocker les infos de voisinage d'antennes (thread-safe)
+struct AntennaNeighborhood {
+    std::unordered_map<int, std::vector<int>> vehiclesPerAntenna;  // microAntennaId -> liste des indices de véhicules
+    std::unordered_map<int, std::set<int>> neighborAntennas;        // microAntennaId -> set des antennes voisines
+};
 
 /**
  * @brief Graphe d'interférence pour gérer la communication entre véhicules
@@ -31,6 +47,20 @@ public:
      * Étape 2: Calcul de la fermeture transitive pour les connexions indirectes
      */
     void buildGraph(const std::vector<Vehicule*>& vehicles);
+    
+    /**
+     * @brief Construit le graphe à partir de snapshots (thread-safe)
+     * @param snapshots Copies des positions des véhicules
+     * @param antennaInfo Infos sur les antennes et leurs voisinages (optionnel)
+     */
+    void buildGraphFromSnapshots(const std::vector<VehicleSnapshot>& snapshots,
+                                  const AntennaNeighborhood* antennaInfo = nullptr);
+
+    /**
+     * @brief Copie les données d'un autre graphe (pour synchronisation thread-safe)
+     * @param other Graphe source à copier
+     */
+    void copyFrom(const InterferenceGraph& other);
 
     /**
      * @brief Efface toutes les connexions du graphe
@@ -101,6 +131,27 @@ public:
      * Utilisé quand l'utilisateur change le nombre d'antennes
      */
     void reinitializeSpatialGrid(const std::vector<Vehicule*>& vehicles, int numMacro, int numMicro);
+
+    /**
+     * @brief Assigne un véhicule à son antenne la plus proche
+     * À appeler quand un nouveau véhicule est ajouté
+     */
+    void assignVehicleToAntenna(Vehicule* vehicle);
+    
+    /**
+     * @brief Retire un véhicule de son antenne
+     * À appeler quand un véhicule est supprimé
+     */
+    void removeVehicleFromAntenna(int vehicleId);
+
+    /**
+     * @brief Met à jour la portée de transmission pour les calculs de voisinage
+     * @param range Nouvelle portée en mètres
+     * 
+     * Cette méthode recalcule quelles antennes sont voisines en fonction
+     * de la nouvelle portée de transmission.
+     */
+    void updateTransmissionRange(double range);
 
     /**
      * @brief Active ou désactive le calcul de la fermeture transitive
