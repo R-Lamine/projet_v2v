@@ -407,20 +407,18 @@ void MapView::paintEvent(QPaintEvent*){
 
         // Dessiner les rayons de transmission si activé et peu de véhicules visibles
         if (m_showRanges && drawDetails) {
+            QColor rangeColor = m_darkTheme ? QColor(100, 200, 220, 80) : QColor(0, 180, 255, 110); // cyan vif
+            QColor rangeFill = m_darkTheme ? QColor(100, 200, 220, 5) : QColor(0, 180, 255, 40);
             for (auto* v : visibleVehicles) {
                 auto [lat, lon] = v->getPosition();
                 QPointF pt = lonLatToScreen(lon, lat);
-                
-                // Calculer le rayon en pixels
                 double range = v->getTransmissionRange();
                 double mpp = metersPerPixelAtLat(lat);
                 double radiusPixels = range / mpp;
-                
-                // Dessiner un cercle semi-transparent pour le rayon (cyan doux, très léger)
-                QPen rangePen(QColor(100, 200, 220, 80));  // Cyan clair, très très transparent
+                QPen rangePen(rangeColor);
                 rangePen.setWidth(1);
                 p.setPen(rangePen);
-                p.setBrush(QColor(100, 200, 220, 5));  // Remplissage quasi invisible
+                p.setBrush(rangeFill);
                 p.drawEllipse(pt, radiusPixels, radiusPixels);
             }
         }
@@ -429,29 +427,24 @@ void MapView::paintEvent(QPaintEvent*){
         if (drawDetails && visibleVehicles.size() < 500) {
             // Dessiner d'abord les connexions transitives (lignes bleues pointillées) si activé
             if (m_showTransitiveConnections) {
-                QPen transitivePen(QColor(147, 112, 219, 120));  // Violet moyen, semi-transparent
+                QColor transitiveColor = m_darkTheme ? QColor(147, 112, 219, 120) : QColor(180, 0, 255, 140); // violet vif
+                QPen transitivePen(transitiveColor);
                 transitivePen.setWidth(1);
                 transitivePen.setStyle(Qt::DashLine);
                 p.setPen(transitivePen);
-
                 for (auto* v : visibleVehicles) {
                     auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
                     auto allReachable = interfGraph.getReachableVehicles(v->getId());
                     auto [lat1, lon1] = v->getPosition();
                     QPointF pt1 = lonLatToScreen(lon1, lat1);
-
-                    
-                    // Dessiner les connexions transitives (accessibles mais pas directs)
                     for (int reachableId : allReachable) {
                         if (directNeighbors.find(reachableId) != directNeighbors.end()) {
                             continue;
                         }
-                        
                         for (auto* reachable : vehicles) {
                             if (reachable && reachable->getId() == reachableId) {
                                 auto [lat2, lon2] = reachable->getPosition();
                                 QPointF pt2 = lonLatToScreen(lon2, lat2);
-                                
                                 if (v->getId() < reachableId) {
                                     p.drawLine(pt1, pt2);
                                 }
@@ -459,27 +452,24 @@ void MapView::paintEvent(QPaintEvent*){
                             }
                         }
                     }
-                    
                 }
             }
 
             // Dessiner ensuite les connexions directes (lignes bleues) si activé
             if (m_drawDirectConnections) {
-                QPen connectionPen(QColor(135, 206, 235, 150));  // Bleu clair, semi-transparent
+                QColor connectionColor = m_darkTheme ? QColor(135, 206, 235, 150) : QColor(0, 120, 255, 200); // bleu vif
+                QPen connectionPen(connectionColor);
                 connectionPen.setWidth(2);
                 p.setPen(connectionPen);
-
                 for (auto* v : visibleVehicles) {
                     auto directNeighbors = interfGraph.getDirectNeighbors(v->getId());
                     auto [lat1, lon1] = v->getPosition();
                     QPointF pt1 = lonLatToScreen(lon1, lat1);
-
                     for (int neighborId : directNeighbors) {
                         for (auto* neighbor : vehicles) {
                             if (neighbor && neighbor->getId() == neighborId) {
                                 auto [lat2, lon2] = neighbor->getPosition();
                                 QPointF pt2 = lonLatToScreen(lon2, lat2);
-                                
                                 if (v->getId() < neighborId) {
                                     p.drawLine(pt1, pt2);
                                 }
@@ -553,20 +543,13 @@ void MapView::paintEvent(QPaintEvent*){
         if (m_zoom <= 12) {
             // Mode points simples pour zoom faible
             double pointSize = std::max(2.0, 3.0 + (m_zoom - 8) * 0.5);  // 2-5 pixels selon zoom
-            
             for (auto* v : visibleVehicles) {
                 auto [lat, lon] = v->getPosition();
                 QPointF pt = lonLatToScreen(lon, lat);
-                
-                // Couleur basée sur l'ID pour cohérence
                 QRandomGenerator gen(v->getId());
-                QColor vehicleColor(
-                    gen.bounded(120, 220),
-                    gen.bounded(120, 220),
-                    gen.bounded(120, 220),
-                    255
-                );
-                
+                QColor vehicleColor = m_darkTheme
+                    ? QColor(gen.bounded(120, 220), gen.bounded(120, 220), gen.bounded(120, 220), 255)
+                    : QColor(gen.bounded(200, 255), gen.bounded(80, 255), gen.bounded(0, 255), 255); // couleurs vives
                 p.setPen(Qt::NoPen);
                 p.setBrush(vehicleColor);
                 p.drawEllipse(pt, pointSize, pointSize);
@@ -576,24 +559,14 @@ void MapView::paintEvent(QPaintEvent*){
             double baseSize = 16.0;  // Taille de base
             double zoomFactor = std::pow(1.15, m_zoom - 16);  // Zoom 14 = taille normale
             double vehicleSize = std::clamp(baseSize * zoomFactor, 6.0, 100.0);  // Min 6, Max 40 pixels
-            
             for (auto* v : visibleVehicles) {
                 auto [lat, lon] = v->getPosition();
                 QPointF pt = lonLatToScreen(lon, lat);
-                
-                // Obtenir la direction du véhicule (heading)
                 double heading = v->getHeading();
-                
-                // Générer une couleur aléatoire basée sur l'ID du véhicule pour cohérence
                 QRandomGenerator gen(v->getId());
-                QColor vehicleColor(
-                    gen.bounded(120, 220),  // R: 100-255
-                    gen.bounded(120, 220),  // G: 100-255
-                    gen.bounded(120, 220),  // B: 100-255
-                    255  // Opacité élevée (sur 255)
-                );
-                
-                // Utiliser le VehicleRenderer pour dessiner le véhicule
+                QColor vehicleColor = m_darkTheme
+                    ? QColor(gen.bounded(120, 220), gen.bounded(120, 220), gen.bounded(120, 220), 255)
+                    : QColor(gen.bounded(200, 255), gen.bounded(80, 255), gen.bounded(0, 255), 255); // couleurs vives
                 VehicleRenderer::drawVehicle(p, pt, heading, vehicleColor, vehicleSize);
             }
         }
